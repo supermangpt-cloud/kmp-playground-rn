@@ -72,8 +72,8 @@ describe('WebPageScreen', () => {
       tree = renderer.create(<WebPageScreen onBack={() => {}} />);
     });
     const screen = tree!.root;
-    const shouldStart = screen.findByProps({testID: 'web-view'}).props
-      .onShouldStartLoadWithRequest;
+    const webView = screen.findByProps({testID: 'web-view'});
+    const shouldStart = webView.props.onShouldStartLoadWithRequest;
 
     let allowed: boolean | undefined;
     renderer.act(() => {
@@ -86,11 +86,32 @@ describe('WebPageScreen', () => {
     expect(allowed).toBe(true);
 
     renderer.act(() => {
+      webView.props.onMessage({
+        nativeEvent: {data: '{"count":1,"at":"14:03:12"}'},
+      });
+    });
+    renderer.act(() => {
       allowed = shouldStart({url: 'tuitui://h5-demo/landing'});
     });
     expect(allowed).toBe(false);
     expect(textOf(screen.findByProps({testID: 'web-blocked'}))).toBe(
       '已拦截非 http(s) 跳转：tuitui://h5-demo/landing',
+    );
+
+    // The HarmonyOS adapter blanks the native view when a navigation is
+    // refused; the screen remounts it with the local document and the last
+    // counter value instead of leaving a blank page.
+    const restored = screen.findByProps({testID: 'web-view'});
+    expect(restored.props.source.html).toContain(
+      'window.__H5_INITIAL_COUNT__ = 1;',
+    );
+    renderer.act(() => {
+      restored.props.onMessage({
+        nativeEvent: {data: '{"count":2,"at":"14:03:20"}'},
+      });
+    });
+    expect(textOf(screen.findByProps({testID: 'web-last-message'}))).toBe(
+      '最近一次回传：第 2 次点击 · 14:03:20',
     );
 
     renderer.act(() => {

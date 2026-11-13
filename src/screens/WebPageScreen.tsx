@@ -15,7 +15,7 @@ import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {WebView} from '@react-native-oh-tpl/react-native-webview';
 import {colors} from '../ui/theme';
 import {isNavigableUrl} from '../ui/webUrl';
-import {DEMO_HTML} from '../web/demoHtml';
+import {demoHtmlWithInitialCount} from '../web/demoHtml';
 
 type Props = {
   onBack: () => void;
@@ -32,6 +32,20 @@ const WAITING = '等待 H5 页面回传';
  * unexpected is shown verbatim so a debugging payload is never hidden.
  */
 export function formatWebMessage(raw: string): string {
+  const parsed = parseWebMessage(raw);
+  if (parsed !== null) {
+    return `第 ${parsed.count} 次点击 · ${parsed.at}`;
+  }
+  return raw;
+}
+
+/** The counter carried by the page's JSON payload, or null for anything else. */
+function messageCount(raw: string): number | null {
+  const parsed = parseWebMessage(raw);
+  return parsed === null ? null : parsed.count;
+}
+
+function parseWebMessage(raw: string): {count: number; at: string} | null {
   try {
     const parsed = JSON.parse(raw) as {count?: unknown; at?: unknown};
     if (
@@ -39,18 +53,25 @@ export function formatWebMessage(raw: string): string {
       typeof parsed.at === 'string' &&
       parsed.at.length > 0
     ) {
-      return `第 ${parsed.count} 次点击 · ${parsed.at}`;
+      return {count: parsed.count, at: parsed.at};
     }
   } catch {
-    // Not JSON: fall through and show the payload as-is.
+    // Not JSON: not a page payload.
   }
-  return raw;
+  return null;
 }
 
 export default function WebPageScreen({onBack}: Props): JSX.Element {
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const [blockedUrl, setBlockedUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Remounting the WebView is how the local document is restored after the
+  // HarmonyOS adaptation blanks it on a refused navigation (see the block
+  // handler). The instance key forces a fresh native view; the seeded count
+  // keeps the page's visible counter moving forward.
+  const [webViewInstance, setWebViewInstance] = useState(0);
+  const [restoredCount, setRestoredCount] = useState(0);
+  const lastCount = useRef(0);
   // The HTML document itself may be loaded as about:blank/data: before it has
   // finished; only that first document may use a non-http(s) URL.
   const initialDocument = useRef(true);
@@ -68,11 +89,29 @@ export default function WebPageScreen({onBack}: Props): JSX.Element {
     // Do not hand tuitui://, intent://, file://, javascript: … to the native
     // WebView: it would either show ERR_UNKNOWN_URL_SCHEME or open another app.
     setBlockedUrl(request.url);
+    // @react-native-oh-tpl/react-native-webview@13.10.3 on HarmonyOS executes a
+    // refused navigation by blanking the native view instead of leaving the
+    // current document alone (reproduced on ALN-AL00/API 26). The page is local,
+    // so remount the WebView with the same `source={{html}}`; the next instance
+    // gets a fresh `initialDocument` allowance and a counter seeded from the
+    // last postMessage, so the page stays interactive and the count keeps
+    // increasing. Reloading via the ref was not used: the document was loaded
+    // with `loadData`, and the adapter's reload()/refresh() gives no guarantee
+    // that the data document comes back; a remount with the same source is
+    // deterministic and lets us seed the counter.
+    initialDocument.current = true;
+    setRestoredCount(lastCount.current);
+    setWebViewInstance(instance => instance + 1);
     return false;
   }, []);
 
   const handleMessage = useCallback((event: {nativeEvent: {data: string}}) => {
-    setLastMessage(formatWebMessage(event.nativeEvent.data));
+    const raw = event.nativeEvent.data;
+    const count = messageCount(raw);
+    if (count !== null) {
+      lastCount.current = count;
+    }
+    setLastMessage(formatWebMessage(raw));
   }, []);
 
   const handleLoadEnd = useCallback(() => {
@@ -100,7 +139,8 @@ export default function WebPageScreen({onBack}: Props): JSX.Element {
       </View>
 
       <WebView
-        source={{html: DEMO_HTML}}
+        key={webViewInstance}
+        source={{html: demoHtmlWithInitialCount(restoredCount)}}
         originWhitelist={['*']}
         javaScriptEnabled
         domStorageEnabled

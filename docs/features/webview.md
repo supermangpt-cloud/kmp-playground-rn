@@ -25,8 +25,11 @@ npm install @react-native-oh-tpl/react-native-webview@13.10.3 --save-exact
 | 官方兼容表 | `<= 13.10.4` 为 `RN 0.72.*`、`API12+`（`@react-native-oh-tpl` 已标记 deprecated，但仍是 0.72 线可用版本） |
 | 本机 SDK | HarmonyOS 26.0.0 / API 26，RN 0.72.5，RNOH 0.72.140 |
 
-**结论：`13.10.3` 在 RN 0.72.5 + API 26 上可用，不需要降级，也没有触发
-「har 要求高于本机 SDK」的情况。** `ohpm install` 阶段没有报错，完整输出见下。
+**结论：`@react-native-oh-tpl/react-native-webview@13.10.3` 在 RN 0.72.5 + HarmonyOS
+API 26 上可用，不需要降级，也没有触发「har 要求高于本机 SDK」的情况。判断依据是
+CI `harmony` job 从零 `ohpm install` + `assembleHap` 通过，以及真机
+`FMR0224125000567` 上的实际运行（见文末），不是只看了编译。**
+`ohpm install` 阶段没有报错，完整输出见下。
 
 `ohpm install --all` 只提示一个版本冲突（适配包声明的是 RNOH `0.72.59`，本工程是
 `0.72.140`），ohpm 自动统一到了 `0.72.140`：
@@ -183,7 +186,9 @@ $ hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-d
    「最近一次回传：第 1 次点击 · 21:49:30」；
 4. 点 `tuitui://h5-demo/landing` 链接后，页面底部显示
    「已拦截非 http(s) 跳转：tuitui://h5-demo/landing」，页面没有崩溃、没有跳走；
-5. 顶部「‹ 返回」和系统返回键都能回到商品列表。
+   本地 HTML 也被恢复，能继续点按钮；
+5. 顶部「‹ 返回」和系统返回键都能回到商品列表；
+6. 连续点拦截链接 3 次后再点「回传给 RN」，计数继续增长（2 → 3 → 4），进程仍存活。
 
 | 证据 | 说明 |
 | --- | --- |
@@ -191,7 +196,37 @@ $ hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-d
 | `after-webview-harmony-list.png` | 同一设备、同一位置：顶部「购物车 0」下方新增「H5 演示」入口 |
 | `after-webview-harmony-h5.png` | 点进 H5 页：本地 HTML 已渲染，底部仍是「等待 H5 页面回传」 |
 | `after-webview-harmony-message.png` | 点按钮之后：H5 页内「已回传 1 次」+ RN 底部「最近一次回传：第 1 次点击 · 21:49:30」 |
-| `after-webview-harmony-blocked.png` | 点 `tuitui://` 链接之后：RN 底部「已拦截非 http(s) 跳转：tuitui://h5-demo/landing」 |
+| `before-webview-fix-blocked-blank.png` | 修复前复现缺陷：点 `tuitui://` 后 RN 提示正确，但 WebView 区域只剩空白 |
+| `after-webview-fix-blocked.png` | 修复后：点 `tuitui://` 后提示正确，本地 HTML 仍在，可继续操作 |
+| `after-webview-fix-restored-counter.png` | 拦截并恢复页面后再点按钮：计数从 2 继续到 3，不是从 0 重来 |
+
+### 真机回归：拒绝导航后的白屏（已修）
+
+首版在真机验收时发现：点 `tuitui://` 链接后，RN 状态栏正确显示「已拦截…」，
+但 WebView 区域变成全白（截图采样全为 `#ffffff`），HTML 按钮也点不动；返回再进
+H5 页能恢复，说明是「拒绝导航」那一下把页面清掉了。
+
+根因不在 `handleShouldStartLoad`：`onShouldStartLoadWithRequest` 返回 `false`
+的语义是「不导航」，当前页面应保持不变。`@react-native-oh-tpl/react-native-webview`
+13.10.3 在鸿蒙侧把拒绝执行成了卸载页面（`RNCWebView.ets` 的 `onLoadIntercept`
+返回 `true` 后 ArkWeb 清空内容），属于适配包的实现缺陷。
+
+修法（保留真实导航拦截，不改成「HTML 只 postMessage」的旁路）：
+
+- 在 `WebPageScreen` 里给 WebView 一个 `webViewInstance` key；
+- 拒绝导航时 `setBlockedUrl(url)`，把 `lastCount` 写进下一页的
+  `window.__H5_INITIAL_COUNT__`，再把 key +1 让 WebView 重新挂载同一个
+  `source={{html}}`；
+- 重新挂载前把 `initialDocument` 重置为允许首屏 `about:blank`/`data:`，避免恢复动作
+  自己又被当成一次非法跳转；
+- 没有用 `webRef.reload()` 作为恢复手段：本地 HTML 是 `loadData` 进来的，适配包的
+  `reload()` 最终是 `controller.refresh()`，这条路径能否重新呈现 data 文档没有保证；
+  即使恢复也会从 0 开始。重新挂载同一 `source={{html}}` 是确定性的，并能注入计数。
+
+验证结果：拦截后提示出现且 HTML 仍在；继续点按钮计数从 2 → 3；连续拦截 3 次后
+再点按钮到 4，没有死循环、没有累积白屏，进程仍存活。代价是页面内除计数外的
+临时状态（滚动位置、输入框）会随重新挂载重置；本 demo 只有计数，已通过注入
+`__H5_INITIAL_COUNT__` 保住。
 
 before/after 是同一台真机、同一页面（商品列表）和同一主题；after 截图是
 `devecocli ui screenshot` 的原始 1260×2720 输出，baseline 是上一单保留的
@@ -211,3 +246,5 @@ before/after 是同一台真机、同一页面（商品列表）和同一主题�
   后续升级 RN 时应换 `@react-native-ohos/react-native-webview`（RN 0.72 对应 `~13.10.5`，API20+）。
 - 本轮只在鸿蒙真机上做交互验证；Android 只保证 native autolink + `:app:assembleDebug`
   编译通过，没有在 Android 设备上跑 H5 页的按钮回传/拦截。
+- 拦截后恢复页面用的是重新挂载 WebView，页面内除计数外的临时状态会重置；如果以后
+  页面有表单/滚动位置需要保留，应优先等适配包修复，或在 HTML 侧自行持久化。

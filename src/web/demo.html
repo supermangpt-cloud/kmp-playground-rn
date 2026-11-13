@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>H5 演示</title>
+    <script>
+      // RN replaces this value when it restores the page after a blocked
+      // navigation; 0 is the normal first load.
+      window.__H5_INITIAL_COUNT__ = 0;
+    </script>
     <style>
       :root {
         color-scheme: light;
@@ -90,8 +95,11 @@
     </main>
     <script>
       (function () {
-        var count = 0;
+        var count = window.__H5_INITIAL_COUNT__ || 0;
         var status = document.getElementById('status');
+        if (count > 0) {
+          status.textContent = '已回传 ' + count + ' 次（页面已恢复，可继续）';
+        }
         document.getElementById('send').addEventListener('click', function () {
           count += 1;
           var at = new Date().toLocaleTimeString();

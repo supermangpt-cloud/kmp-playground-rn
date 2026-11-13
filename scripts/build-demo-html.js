@@ -32,6 +32,19 @@ const out = `/**
  * (a \`file://\` path would be platform-specific).
  */
 export const DEMO_HTML = ${JSON.stringify(html)};
+
+/**
+ * The same document with the H5 counter seeded from RN. Used when the page is
+ * restored after a blocked navigation, so the visible count keeps increasing
+ * instead of restarting at zero.
+ */
+export function demoHtmlWithInitialCount(count: number): string {
+  const marker = 'window.__H5_INITIAL_COUNT__ = 0;';
+  if (!DEMO_HTML.includes(marker)) {
+    throw new Error('demo.html is missing the __H5_INITIAL_COUNT__ marker');
+  }
+  return DEMO_HTML.replace(marker, \`window.__H5_INITIAL_COUNT__ = \${count};\`);
+}
 `;
 
 const options = {

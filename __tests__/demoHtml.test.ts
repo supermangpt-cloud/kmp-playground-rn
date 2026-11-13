@@ -10,7 +10,7 @@ import {describe, expect, it} from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import {DEMO_HTML} from '../src/web/demoHtml';
+import {DEMO_HTML, demoHtmlWithInitialCount} from '../src/web/demoHtml';
 
 describe('demo HTML mirror', () => {
   it('matches src/web/demo.html', () => {
@@ -20,5 +20,14 @@ describe('demo HTML mirror', () => {
     );
 
     expect(DEMO_HTML).toBe(html);
+  });
+
+  it('seeds the visible counter when the page is restored', () => {
+    expect(demoHtmlWithInitialCount(3)).toContain(
+      'window.__H5_INITIAL_COUNT__ = 3;',
+    );
+    expect(demoHtmlWithInitialCount(0)).toContain(
+      'window.__H5_INITIAL_COUNT__ = 0;',
+    );
   });
 });
