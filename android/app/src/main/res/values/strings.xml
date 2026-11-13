@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">KmpPlaygroundRn</string>
+    <string name="splash_title">KMP RN Demo</string>
+    <string name="splash_subtitle">React Native</string>
 </resources>

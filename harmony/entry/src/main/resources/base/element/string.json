@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "HarmonyOS entry for the KMP RN demo"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "KMP RN demo"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "KMP RN Demo"
+    },
+    {
+      "name": "splash_title",
+      "value": "KMP RN Demo"
+    },
+    {
+      "name": "splash_subtitle",
+      "value": "React Native"
+    }
+  ]
+}

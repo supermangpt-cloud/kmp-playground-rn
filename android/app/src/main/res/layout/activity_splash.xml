@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Native launch splash: solid colours and text only, no network or image
+     asset. Mirrors the iOS LaunchScreen storyboard and harmony pages/Splash.ets. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#FFFFFF">
+
+    <TextView
+        android:id="@+id/splash_logo"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:background="@drawable/splash_logo_background"
+        android:gravity="center"
+        android:text="KMP"
+        android:textColor="#FFFFFF"
+        android:textSize="32sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/splash_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="@string/splash_title"
+        android:textColor="#212121"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/splash_subtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/splash_subtitle"
+        android:textColor="#757575"
+        android:textSize="14sp" />
+
+</LinearLayout>

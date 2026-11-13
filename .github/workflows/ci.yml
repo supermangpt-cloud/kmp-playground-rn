@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  js:
+    name: js
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: install JS dependencies
+        run: npm ci
+      - name: typecheck
+        run: npx tsc --noEmit
+      - name: unit tests
+        run: npm test -- --ci
+
+  android:
+    name: android
+    runs-on: [self-hosted, macOS, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: install JS dependencies
+        run: npm ci
+      - name: point Gradle at the local Android SDK
+        # ANDROID_HOME is provided by the runner; local.properties is gitignored.
+        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+      - name: assemble debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+  ios:
+    name: ios
+    # Disabled until the runner has an Xcode that can build RN 0.72.5. The
+    # installed Xcode 27 requires a deployment target >= 15.0 (the project and
+    # Pods are at 12.4) and its clang rejects RN 0.72's Yoga/glog sources. Once
+    # Xcode 15/16 is installed and selected, remove this guard; the steps below
+    # (bundle install + bundle exec pod install) are ready for that toolchain.
+    if: ${{ false }}
+    runs-on: [self-hosted, macOS, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: install JS dependencies
+        run: npm ci
+      - name: install Ruby dependencies
+        run: bundle install
+      - name: install CocoaPods
+        working-directory: ios
+        run: bundle exec pod install
+      - name: build for the iPhone simulator
+        working-directory: ios
+        run: |
+          xcodebuild -workspace KmpPlaygroundRn.xcworkspace \
+            -scheme KmpPlaygroundRn \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/ios-dd" \
+            CODE_SIGNING_ALLOWED=NO build
+
+  harmony:
+    name: harmony
+    runs-on: [self-hosted, macOS, ARM64]
+    env:
+      # Required by the CAPI architecture enabled in pages/Index.ets. The rest
+      # of the DevEco environment (DEVECO_HOME, DEVECO_SDK_HOME, hvigor, ohpm,
+      # node) is provided by the runner.
+      RNOH_C_API_ARCH: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: install JS dependencies
+        run: npm ci
+      - name: bundle the JS for HarmonyOS
+        # Must run before assembleHap. bundle.harmony.js is a gitignored build
+        # product; without it the installed HAP only shows the red screen
+        # "None of the provided JSBundlePath(s) ... Is Metro server running?".
+        run: npm run dev
+      - name: install the RNOH har
+        working-directory: harmony
+        run: ohpm install --all
+      - name: assemble the HAP (unsigned compile gate)
+        # The runner has no signing material. hvigor skips signing when
+        # signingConfigs is empty and still produces the unsigned HAP.
+        working-directory: harmony
+        run: hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-daemon
+      - name: verify the unsigned HAP exists
+        run: |
+          hap=harmony/entry/build/default/outputs/default/entry-default-unsigned.hap
+          test -s "$hap"
+          echo "unsigned HAP: $hap ($(wc -c < "$hap") bytes)"
