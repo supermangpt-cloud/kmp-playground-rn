@@ -6,12 +6,23 @@ import 'react-native';
 import React from 'react';
 import App from '../App';
 
-// Note: import explicitly to use the types shiped with jest.
-import {it} from '@jest/globals';
+// Note: import explicitly to use the types shipped with jest.
+import {it, expect} from '@jest/globals';
 
-// Note: test renderer must be required after react-native.
 import renderer from 'react-test-renderer';
 
-it('renders correctly', () => {
-  renderer.create(<App />);
+// `act` flushes the BackHandler subscription effect; without it the effect
+// would run after teardown and the lazily-loaded react-native module throws.
+it('renders the product list with the cart entry', () => {
+  let tree: renderer.ReactTestRenderer | undefined;
+  renderer.act(() => {
+    tree = renderer.create(<App />);
+  });
+
+  expect(tree!.root.findByProps({testID: 'product-list'})).toBeTruthy();
+  expect(tree!.root.findByProps({testID: 'cart-badge'})).toBeTruthy();
+
+  renderer.act(() => {
+    tree!.unmount();
+  });
 });

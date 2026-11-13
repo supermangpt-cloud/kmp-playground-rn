@@ -1,8 +1,9 @@
 # HarmonyOS setup
 
-This is the first HarmonyOS shell for the React Native port. It loads a native
+This is the HarmonyOS shell for the React Native port. It loads a native
 splash, then hands the window to the RNOH surface that renders `App.tsx`
-(`商品列表`).
+(`商品列表` → `商品详情` → `购物车`, see
+[features/cart-and-detail.md](features/cart-and-detail.md)).
 
 The app is a standalone RN 0.72.5 project, not a checkout of
 `ohos_react_native`, so it does **not** use the official tester's `file:`
