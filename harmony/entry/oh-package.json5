@@ -1,0 +1,14 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "HarmonyOS entry module: shows the native splash and mounts the RN surface.",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    // Install from the ohpm registry instead of the official tester's local
+    // file: path; this repository is a standalone app, not a checkout of
+    // ohos_react_native.
+    "@rnoh/react-native-openharmony": "0.72.140"
+  }
+}

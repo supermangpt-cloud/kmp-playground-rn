@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Only the JS job runs on GitHub-hosted infrastructure. It is the one check
+  # this repository can run without a machine-local toolchain.
+  js:
+    name: js
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: install JS dependencies
+        run: npm ci
+      - name: typecheck
+        run: npx tsc --noEmit
+      - name: unit tests
+        run: npm test -- --ci
+
+  # ---------------------------------------------------------------------------
+  # The three native jobs below are written but deliberately not wired:
+  # mac-local-dsh and mac-local-kmp are registered to the KMP repository, and a
+  # runner registration is repository-scoped. Remove `if: false` once a runner
+  # is registered for this repository and its labels match `runs-on`.
+  # ---------------------------------------------------------------------------
+
+  android:
+    name: android
+    if: ${{ false }}
+    runs-on: [self-hosted, macOS, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: point Gradle at the local Android SDK
+        working-directory: android
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+      - name: assemble debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+  ios:
+    name: ios
+    if: ${{ false }}
+    runs-on: [self-hosted, macOS, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: install CocoaPods
+        working-directory: ios
+        run: pod install
+      - name: build for the iPhone simulator
+        working-directory: ios
+        run: |
+          xcodebuild -workspace KmpPlaygroundRn.xcworkspace \
+            -scheme KmpPlaygroundRn \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/ios-dd" \
+            CODE_SIGNING_ALLOWED=NO build
+
+  harmony:
+    name: harmony
+    if: ${{ false }}
+    runs-on: [self-hosted, macOS, ARM64]
+    env:
+      DEVECO_HOME: /Applications/DevEco-Studio.app/Contents
+      DEVECO_SDK_HOME: /Applications/DevEco-Studio.app/Contents/sdk
+      OHOS_SDK_HOME: /Applications/DevEco-Studio.app/Contents/sdk/default/openharmony
+      HOS_SDK_HOME: /Applications/DevEco-Studio.app/Contents/sdk/default
+      RNOH_C_API_ARCH: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: add the DevEco toolchain to PATH
+        run: |
+          echo "$DEVECO_HOME/tools/hvigor/bin" >> "$GITHUB_PATH"
+          echo "$DEVECO_HOME/tools/ohpm/bin" >> "$GITHUB_PATH"
+          echo "$DEVECO_HOME/tools/node/bin" >> "$GITHUB_PATH"
+          echo "$DEVECO_HOME/jbr/Contents/Home/bin" >> "$GITHUB_PATH"
+      - name: install JS dependencies
+        run: npm ci
+      - name: bundle the JS for HarmonyOS
+        run: npm run dev
+      - name: install the RNOH har
+        working-directory: harmony/entry
+        run: ohpm install
+      - name: inject the machine-local signing configuration
+        run: python3 scripts/inject-signing.py
+      - name: assemble the signed HAP
+        working-directory: harmony
+        run: hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-daemon
+      - name: verify the HAP is signed
+        run: |
+          hap=harmony/entry/build/default/outputs/default/entry-default-signed.hap
+          test -s "$hap"
+          echo "signed HAP: $hap ($(wc -c < "$hap") bytes)"
