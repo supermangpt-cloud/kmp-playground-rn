@@ -21,6 +21,7 @@ it('renders the product list with the cart entry', () => {
 
   expect(tree!.root.findByProps({testID: 'product-list'})).toBeTruthy();
   expect(tree!.root.findByProps({testID: 'cart-badge'})).toBeTruthy();
+  expect(tree!.root.findByProps({testID: 'h5-entry'})).toBeTruthy();
 
   renderer.act(() => {
     tree!.unmount();

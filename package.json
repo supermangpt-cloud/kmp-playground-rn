@@ -9,12 +9,15 @@
     "start": "react-native start",
     "test": "jest",
     "typecheck": "tsc --noEmit",
+    "build:demo-html": "node scripts/build-demo-html.js",
     "dev": "react-native bundle-harmony --dev"
   },
   "dependencies": {
+    "@react-native-oh-tpl/react-native-webview": "13.10.3",
     "@react-native-oh/react-native-harmony": "^0.72.140",
     "react": "18.2.0",
-    "react-native": "0.72.5"
+    "react-native": "0.72.5",
+    "react-native-webview": "13.10.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
