@@ -147,16 +147,16 @@ http/https；`tuitui://`、`intent://`、`file://`、`javascript:` 等返回 `fa
 $ npx tsc --noEmit
 $ npm test -- --ci
 Test Suites: 5 passed, 5 total
-Tests:       18 passed, 18 total
+Tests:       19 passed, 19 total
 $ npx eslint App.tsx src __tests__
-✖ 2 problems (0 errors, 2 warnings)
+(0 errors, 0 warnings)
 ```
 
 新增测试：
 
 - `__tests__/webUrl.test.ts`：KMP 同款合法/非法 URL 用例（含 `tuitui://`、`javascript:`、`https.evil://`）；
-- `__tests__/webPageScreen.test.tsx`：按钮回传更新状态、`tuitui://` 被拒绝并提示、返回按钮；
-- `__tests__/demoHtml.test.ts`：`demo.html` 与打包字符串一致；
+- `__tests__/webPageScreen.test.tsx`：按钮回传更新状态、`tuitui://` 被拒绝并提示、拦截后重新挂载并从上次计数恢复、返回按钮；
+- `__tests__/demoHtml.test.ts`：`demo.html` 与打包字符串一致，恢复时能注入 `__H5_INITIAL_COUNT__`；
 - `App.test.tsx` 增加列表页「H5 演示」入口存在性断言。
 
 ### 鸿蒙构建 / 真机
