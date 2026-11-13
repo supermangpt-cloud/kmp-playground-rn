@@ -1,5 +1,26 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
+
+# HarmonyOS
+
+> 构建鸿蒙 HAP 前必须先生成 JS bundle：`npm run dev`（产物在
+> `harmony/entry/src/main/resources/rawfile/`，已被 gitignore，不会进仓库）。
+> 否则安装后只有红屏 "Is Metro server running?"。
+
+The JS bundle is a gitignored build product. Generate it, install the RNOH
+har, then assemble the HAP:
+
+```sh
+npm ci
+npm run dev                 # writes harmony/entry/src/main/resources/rawfile/bundle.harmony.js
+cd harmony
+ohpm install --all          # installs @rnoh/react-native-openharmony from the registry
+hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-daemon
+```
+
+See [docs/harmony-setup.md](docs/harmony-setup.md) for the full setup, signing
+and verification notes.
+
 # Getting Started
 
 >**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.

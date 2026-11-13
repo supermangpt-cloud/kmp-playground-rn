@@ -38,24 +38,31 @@ three values must stay equal.
 
 ## Building
 
+> **Generate the JS bundle before `assembleHap`.** `bundle.harmony.js` is a
+> gitignored build product. Without it the HAP still builds, installs and
+> starts, but the app shows only the red screen
+> `None of the provided JSBundlePath(s) ... Is Metro server running?`.
+> `npm run dev` writes the bundle to
+> `harmony/entry/src/main/resources/rawfile/`.
+
 Prerequisites: DevEco Studio (this machine uses 26.0.0 with the API 26 SDK),
 ohpm and hvigor on `PATH`, Node/npm, and the JS dependencies installed
 (`npm ci`).
 
 ```sh
-# 1. JS bundle for the harmony platform (writes entry/src/main/resources/rawfile)
+# 1. JS bundle for the harmony platform (must happen before assembleHap)
 npm run dev
 
-# 2. RNOH har into entry/oh_modules (resolved from the ohpm registry)
-cd harmony/entry
-ohpm install
-
-# 3. sign (the committed file has no signing material)
-cd ../..
-python3 scripts/inject-signing.py
-
-# 4. build and sign the HAP
+# 2. RNOH har from the ohpm registry (installs every module's dependencies)
 cd harmony
+ohpm install --all
+
+# 3. optional: sign for a local installable build
+# The committed build-profile has no signing material; this injects the
+# machine-local ~/.ohos/dsh-signing-rn.json5 block for the build.
+python3 ../scripts/inject-signing.py
+
+# 4. build the HAP
 export DEVECO_HOME=/Applications/DevEco-Studio.app/Contents
 export DEVECO_SDK_HOME=$DEVECO_HOME/sdk
 export OHOS_SDK_HOME=$DEVECO_HOME/sdk/default/openharmony
@@ -65,12 +72,55 @@ export PATH="$DEVECO_HOME/tools/hvigor/bin:$DEVECO_HOME/tools/ohpm/bin:$DEVECO_H
 hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-daemon
 ```
 
-The artifact is
+A local signed build writes
 `harmony/entry/build/default/outputs/default/entry-default-signed.hap`; install
 it with `hdc install -r <hap>` or `devecocli device app install <hap> --replace`.
 
-After a local build, restore the empty placeholder before committing:
+A build without signing (the CI compile gate) writes
+`entry-default-unsigned.hap`. hvigor skips signing when `signingConfigs` is
+empty and prints a warning, but the compile/package still succeeds. The
+committed `build-profile.json5` therefore builds unsigned out of the box and
+needs no signing material in CI.
+
+After a local signed build, restore the empty placeholder before committing:
 `git checkout -- harmony/build-profile.json5`.
+
+## CI
+
+- `js` runs on GitHub-hosted infrastructure: `npm ci`, `npx tsc --noEmit`,
+  `npm test`.
+- `android` runs on the repository self-hosted runner
+  (`self-hosted, macOS, ARM64`): `npm ci`, writes
+  `android/local.properties` with `sdk.dir=$ANDROID_HOME`, then
+  `./gradlew :app:assembleDebug`.
+- `harmony` runs on the same runner: `npm ci`, **`npm run dev`** (the bundle is
+  required before packaging), `cd harmony && ohpm install --all`, then
+  `hvigorw ... assembleHap` and verifies the unsigned HAP exists. The runner
+  has no signing material, so this is a compile/package gate, not a signed
+  installable artifact.
+- `ios` stays disabled with a comment until the runner has an Xcode that can
+  build RN 0.72.5 (see the limitations at the end).
+
+## Splash ordering
+
+- HarmonyOS: `entry/src/main/resources/base/profile/main_pages.json` lists
+  `pages/Splash` first, and `EntryAbility.getPagePath()` returns
+  `pages/Splash`; after `SPLASH_MILLIS` the page calls
+  `router.replaceUrl({url: 'pages/Index'})`, so the product list has no splash
+  below it in the back stack.
+- Android: `SplashActivity` is the only activity with the MAIN/LAUNCHER intent
+  filter; `MainActivity` keeps `singleTask` but is not exported and has no
+  launcher filter.
+- iOS: `UILaunchStoryboardName` points at `LaunchScreen`, and
+  `AppDelegate.mm` shows `SplashViewController` for `SPLASH_MILLIS` before
+  restoring the `RCTAppDelegate` root controller.
+
+The Android and HarmonyOS splash screens were captured from the running apps
+(`docs/evidence/after-android-splash.jpg`,
+`docs/evidence/after-harmony-splash.jpg`). The Android recording spends about
+1 s on the splash before the RN surface; the HarmonyOS recording shows the same.
+The iOS splash is code-verified only (storyboard + `SplashViewController.m`
+compile), because the full iOS app cannot be built on Xcode 27 here.
 
 ## Pitfalls found while wiring it
 

@@ -20,3 +20,4 @@ harmony/entry/src/main/resources/rawfile/assets/
 .DS_Store
 **/__pycache__/
 harmony/.cache/
+vendor/bundle/

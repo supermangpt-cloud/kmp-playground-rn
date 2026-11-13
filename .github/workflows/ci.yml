@@ -10,8 +10,6 @@ permissions:
   contents: read
 
 jobs:
-  # Only the JS job runs on GitHub-hosted infrastructure. It is the one check
-  # this repository can run without a machine-local toolchain.
   js:
     name: js
     runs-on: ubuntu-latest
@@ -28,39 +26,38 @@ jobs:
       - name: unit tests
         run: npm test -- --ci
 
-  # ---------------------------------------------------------------------------
-  # The three native jobs below are written but deliberately not wired:
-  # mac-local-dsh and mac-local-kmp are registered to the KMP repository, and a
-  # runner registration is repository-scoped. Remove `if: false` once a runner
-  # is registered for this repository and its labels match `runs-on`.
-  # ---------------------------------------------------------------------------
-
   android:
     name: android
-    if: ${{ false }}
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "11"
+      - name: install JS dependencies
+        run: npm ci
       - name: point Gradle at the local Android SDK
-        working-directory: android
-        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        # ANDROID_HOME is provided by the runner; local.properties is gitignored.
+        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
       - name: assemble debug APK
         working-directory: android
         run: ./gradlew --no-daemon :app:assembleDebug
 
   ios:
     name: ios
+    # Disabled until the runner has an Xcode that can build RN 0.72.5. The
+    # installed Xcode 27 requires a deployment target >= 15.0 (the project and
+    # Pods are at 12.4) and its clang rejects RN 0.72's Yoga/glog sources. Once
+    # Xcode 15/16 is installed and selected, remove this guard; the steps below
+    # (bundle install + bundle exec pod install) are ready for that toolchain.
     if: ${{ false }}
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       - uses: actions/checkout@v4
+      - name: install JS dependencies
+        run: npm ci
+      - name: install Ruby dependencies
+        run: bundle install
       - name: install CocoaPods
         working-directory: ios
-        run: pod install
+        run: bundle exec pod install
       - name: build for the iPhone simulator
         working-directory: ios
         run: |
@@ -73,40 +70,31 @@ jobs:
 
   harmony:
     name: harmony
-    if: ${{ false }}
     runs-on: [self-hosted, macOS, ARM64]
     env:
-      DEVECO_HOME: /Applications/DevEco-Studio.app/Contents
-      DEVECO_SDK_HOME: /Applications/DevEco-Studio.app/Contents/sdk
-      OHOS_SDK_HOME: /Applications/DevEco-Studio.app/Contents/sdk/default/openharmony
-      HOS_SDK_HOME: /Applications/DevEco-Studio.app/Contents/sdk/default
+      # Required by the CAPI architecture enabled in pages/Index.ets. The rest
+      # of the DevEco environment (DEVECO_HOME, DEVECO_SDK_HOME, hvigor, ohpm,
+      # node) is provided by the runner.
       RNOH_C_API_ARCH: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: add the DevEco toolchain to PATH
-        run: |
-          echo "$DEVECO_HOME/tools/hvigor/bin" >> "$GITHUB_PATH"
-          echo "$DEVECO_HOME/tools/ohpm/bin" >> "$GITHUB_PATH"
-          echo "$DEVECO_HOME/tools/node/bin" >> "$GITHUB_PATH"
-          echo "$DEVECO_HOME/jbr/Contents/Home/bin" >> "$GITHUB_PATH"
       - name: install JS dependencies
         run: npm ci
       - name: bundle the JS for HarmonyOS
+        # Must run before assembleHap. bundle.harmony.js is a gitignored build
+        # product; without it the installed HAP only shows the red screen
+        # "None of the provided JSBundlePath(s) ... Is Metro server running?".
         run: npm run dev
       - name: install the RNOH har
-        working-directory: harmony/entry
-        run: ohpm install
-      - name: inject the machine-local signing configuration
-        run: python3 scripts/inject-signing.py
-      - name: assemble the signed HAP
+        working-directory: harmony
+        run: ohpm install --all
+      - name: assemble the HAP (unsigned compile gate)
+        # The runner has no signing material. hvigor skips signing when
+        # signingConfigs is empty and still produces the unsigned HAP.
         working-directory: harmony
         run: hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-daemon
-      - name: verify the HAP is signed
+      - name: verify the unsigned HAP exists
         run: |
-          hap=harmony/entry/build/default/outputs/default/entry-default-signed.hap
+          hap=harmony/entry/build/default/outputs/default/entry-default-unsigned.hap
           test -s "$hap"
-          echo "signed HAP: $hap ($(wc -c < "$hap") bytes)"
+          echo "unsigned HAP: $hap ($(wc -c < "$hap") bytes)"
