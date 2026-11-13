@@ -127,8 +127,8 @@ compile), because the full iOS app cannot be built on Xcode 27 here.
 - **The official tester uses local paths; this project cannot.** `tester/harmony`
   depends on `file:../react_native_openharmony` and puts dependencies in the
   project root. Here the dependency is the registry version `0.72.140` in
-  `entry/oh-package.json5`, so `ohpm install` runs in `harmony/entry` and the
-  har ends up in `entry/oh_modules`, which is why the CMake file goes three
+  `entry/oh-package.json5`, so `ohpm install --all` runs at the `harmony/`
+  root and populates `entry/oh_modules`, which is why the CMake file goes three
   levels up (`../../../oh_modules`).
 - **No RNOH hvigor plugin, codegen or autolinking.** The tester's hvigor
   plugin generates `RNOHPackagesFactory`/`autolinking.cmake` for its own sample
@@ -141,7 +141,9 @@ compile), because the full iOS app cannot be built on Xcode 27 here.
 - **The JS bundle is a build product.** `npm run dev` (`react-native
   bundle-harmony --dev`) writes `bundle.harmony.js` and `assets/` into
   `entry/src/main/resources/rawfile`; both are in `.gitignore`. Without the
-  bundle the HAP builds but the app can only load from Metro or the sandbox.
+  bundle the HAP still builds, installs and starts, but the app only shows the
+  red screen `None of the provided JSBundlePath(s) ... Is Metro server
+  running?`; it can only load from Metro or a sandbox copy.
 - **`harmony/oh_modules` must be kept out of JS tooling.** The RNOH har ships
   its own `__tests__` (for Hermes) and `.d.ts` files generated for a newer
   TypeScript. `jest.config.js` ignores `/harmony/`, and `tsconfig.json` excludes
@@ -162,24 +164,92 @@ compile), because the full iOS app cannot be built on Xcode 27 here.
   ability's `getPagePath()` returns it. `router.replaceUrl({url: 'pages/Index'})`
   replaces the page (no back stack), so back on the product list exits the app.
 
+## Clean-checkout verification
+
+On 2026-11-13 the complete flow was repeated from `git archive c2a7859` in
+`/tmp/clean-rn`: no `node_modules`, no `oh_modules`, no generated
+`bundle.harmony.js`. The checked-out tree contains only committed files. The
+commands and the relevant output were:
+
+```console
+$ test -f harmony/entry/src/main/resources/rawfile/bundle.harmony.js || echo "bundle absent"
+bundle absent
+$ npm ci
+added 1155 packages in 3 s
+$ npm run dev
+info Copied 5 assets
+$ ls -l harmony/entry/src/main/resources/rawfile/bundle.harmony.js
+-rw-r--r-- 1 ... 5777722 Nov 13 14:39 bundle.harmony.js
+$ cd harmony && ohpm install --all
+install completed in 26 s 489 ms
+$ hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-daemon
+> hvigor WARN: Will skip sign 'hos_hap'. No signingConfigs profile is configured in current project.
+> hvigor BUILD SUCCESSFUL in 3 min 14 s 886 ms
+$ ls -l entry/build/default/outputs/default/entry-default-unsigned.hap
+-rw-r--r-- 1 ... 58507274 Nov 13 14:43 entry-default-unsigned.hap
+$ python3 ../scripts/inject-signing.py
+injected signing material from .../.ohos/dsh-signing-rn.json5
+$ hvigorw --mode module -p product=default -p buildMode=debug assembleHap --no-daemon
+> hvigor BUILD SUCCESSFUL in 4 s 714 ms
+$ unzip -l entry/build/default/outputs/default/entry-default-signed.hap | grep bundle.harmony.js
+5777722 ... resources/rawfile/bundle.harmony.js
+$ devecocli device app install entry/build/default/outputs/default/entry-default-signed.hap --replace
+Installed ... entry-default-signed.hap.
+$ devecocli device app start --bundle com.example.kmp.rn.harmony --ability EntryAbility
+App ... start ability successfully.
+```
+
+The installed app showed the native splash (`KMP / KMP RN Demo / React
+Native`) and then the product list (`商品列表`,
+`KMP RN Demo · 共 6 件商品`, six products). There was no red screen. The
+launch recording (`clean-harmony-splash.mp4`, 12.84 s at 40 sampled frames)
+keeps the splash on screen for about 1 s before the list appears. The screens
+in `docs/evidence/after-harmony-splash.jpg` and
+`docs/evidence/after-harmony-list.jpg` come from this clean build.
+
+## CI results
+
+The first run with the native jobs enabled (`c2a7859`, run `43380109993`) on
+the repository self-hosted runner:
+
+| job | result | time |
+| --- | --- | --- |
+| `js` | pass | 21 s |
+| `android` | pass | 48 s |
+| `harmony` | pass | 6 min 37 s |
+| `ios` | skipped (guard) | — |
+
+`harmony` really ran `npm ci` -> `npm run dev` -> `ohpm install --all` ->
+unsigned `assembleHap`; the unsigned HAP is the compile gate on the runner
+(no signing material there). `ios` stays skipped until the Xcode limitation
+below is resolved.
+
 ## What was verified, and what was not
 
-Verified on this machine (2026-11-13):
+Verified on this machine and in the clean checkout (2026-11-13):
 
-- `npx tsc --noEmit` and `npm test` pass.
-- Android `:app:assembleDebug` builds; the splash is a native activity shown
-  for about 1 s, then the RN product list renders (Android 36 emulator,
-  1080 x 2400, light theme).
-- `ohpm install` resolves `@rnoh/react-native-openharmony@0.72.140` from the
-  ohpm registry.
-- `hvigorw ... assembleHap` builds and signs the HAP; `librnoh_app.so` compiles
-  with the API 26 NDK.
-- The HAP installs and runs on `FMR0224125000567` (`ALN-AL00`, HarmonyOS
-  7.0.0.111 / API 26): the native splash shows `KMP / KMP RN Demo / React
-  Native`, then the six-product list renders from the packaged
-  `bundle.harmony.js`.
+- `npx tsc --noEmit` and `npm test` pass, in the worktree and in the GitHub
+  `js` job.
+- Android `:app:assembleDebug` builds locally (Java 17, matching the runner)
+  and in CI; the splash is a native activity shown for about 1 s, then the RN
+  product list renders (Android 36 emulator, 1080 x 2400, light theme).
+- `ohpm install --all` resolves `@rnoh/react-native-openharmony@0.72.140` from
+  the ohpm registry in a clean checkout.
+- `hvigorw ... assembleHap` builds unsigned from the committed profile and
+  signed after `scripts/inject-signing.py`; `librnoh_app.so` compiles with the
+  API 26 NDK.
+- The clean signed HAP contains `resources/rawfile/bundle.harmony.js` and
+  installs and runs on `FMR0224125000567` (`ALN-AL00`, HarmonyOS 7.0.0.111 /
+  API 26) without the red screen: splash, then the six-product list.
+- Android launcher ordering was confirmed from the built APK
+  (`launchable-activity: com.example.kmp.rn.SplashActivity`), and the built
+  APK has no launcher filter on `MainActivity`.
+- HarmonyOS `main_pages.json` lists `pages/Splash` first;
+  `EntryAbility.getPagePath()` returns it.
 - The iOS `LaunchScreen.storyboard` compiles with `ibtool` and
-  `SplashViewController.m` compiles against the iPhoneSimulator SDK.
+  `SplashViewController.m` compiles against the iPhoneSimulator SDK;
+  `UILaunchStoryboardName` points at `LaunchScreen` and `AppDelegate.mm` swaps
+  the splash root controller after `SPLASH_MILLIS`.
 
 Not verified:
 
@@ -196,9 +266,10 @@ Not verified:
   `boostorg.jfrog.io` URL, and the local pod install used `NO_FLIPPER=1
   USE_HERMES=0` to avoid a 480 MB Hermes download. None of those local
   workarounds are committed.
-- The `android`, `ios` and `harmony` CI jobs are written but disabled
-  (`if: false`): this repository has no self-hosted runner registered yet. The
-  JS job runs on GitHub-hosted infrastructure.
+- The `ios` CI job is still skipped (`if: false` with a comment): the runner
+  has Xcode 27, which cannot build RN 0.72.5 (same incompatibility as above).
+  `android`, `harmony` and `js` really run; their results are in the table
+  above. An Xcode 15/16 toolchain would allow enabling `ios`.
 - A release HAP was not built; only the debug HAP was installed and exercised.
 - RNOH 0.72.140 was exercised on an API 26 device, not on an API 12 device.
 - HarmonyOS HAP signing material is intentionally absent from the repository;
