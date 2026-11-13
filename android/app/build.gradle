@@ -73,9 +73,9 @@ android {
 
     compileSdkVersion rootProject.ext.compileSdkVersion
 
-    namespace "com.kmpplaygroundrn"
+    namespace "com.example.kmp.rn"
     defaultConfig {
-        applicationId "com.kmpplaygroundrn"
+        applicationId "com.example.kmp.rn"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

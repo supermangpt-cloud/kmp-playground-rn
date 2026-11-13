@@ -1,4 +1,4 @@
-package com.kmpplaygroundrn;
+package com.example.kmp.rn;
 
 import com.facebook.react.ReactActivity;
 import com.facebook.react.ReactActivityDelegate;
