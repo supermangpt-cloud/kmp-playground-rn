@@ -1,11 +1,12 @@
 import type { RNPackageContext, RNPackage } from '@rnoh/react-native-openharmony';
+import { WebViewPackage } from '@react-native-oh-tpl/react-native-webview';
 
 /**
- * Third-party RN packages linked into the app. The product list only uses the
- * RNOH core package and built-in React Native modules, so the list stays empty.
- * A library with native code would add its package here (and in
- * PackageProvider.cpp).
+ * Third-party RN packages linked into the app. The list contains the
+ * HarmonyOS WebView adaptation; its ArkTS package registers the RNCWebView
+ * custom component and its turbo module. Everything else comes from the RNOH
+ * core package, which the runtime adds itself.
  */
 export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
-  return [];
+  return [new WebViewPackage(ctx)];
 }

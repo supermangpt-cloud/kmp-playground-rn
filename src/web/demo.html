@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>H5 演示</title>
+    <script>
+      // RN replaces this value when it restores the page after a blocked
+      // navigation; 0 is the normal first load.
+      window.__H5_INITIAL_COUNT__ = 0;
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 24px 20px;
+        background: #f5f5f5;
+        color: #212121;
+        font-family: -apple-system, BlinkMacSystemFont, 'HarmonyOS Sans', sans-serif;
+      }
+      .card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 24px 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+      }
+      .eyebrow {
+        margin: 0;
+        color: #2563eb;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+      h1 {
+        margin: 8px 0 12px;
+        font-size: 26px;
+      }
+      p {
+        line-height: 1.6;
+        font-size: 15px;
+        color: #555555;
+      }
+      code {
+        color: #212121;
+        background: #eef2ff;
+        border-radius: 4px;
+        padding: 1px 4px;
+      }
+      button {
+        margin-top: 12px;
+        width: 100%;
+        border: 0;
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: #2563eb;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      button:active {
+        opacity: 0.8;
+      }
+      .status {
+        margin: 12px 0 0;
+        color: #2563eb;
+        font-weight: 600;
+      }
+      .danger {
+        display: block;
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid #eeeeee;
+        color: #b91c1c;
+        font-size: 14px;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <p class="eyebrow">LOCAL HTML · NO NETWORK</p>
+      <h1>H5 演示页</h1>
+      <p>
+        这个页面来自 App 内置的 <code>src/web/demo.html</code>，不依赖外网。
+        点下面的按钮，把数据通过 <code>ReactNativeWebView.postMessage</code>
+        回传给 RN。
+      </p>
+      <button id="send" type="button">回传给 RN</button>
+      <p class="status" id="status">还没有回传</p>
+      <a class="danger" href="tuitui://h5-demo/landing">
+        模拟 360 扫码落地页（tuitui://，应被拦截）
+      </a>
+    </main>
+    <script>
+      (function () {
+        var count = window.__H5_INITIAL_COUNT__ || 0;
+        var status = document.getElementById('status');
+        if (count > 0) {
+          status.textContent = '已回传 ' + count + ' 次（页面已恢复，可继续）';
+        }
+        document.getElementById('send').addEventListener('click', function () {
+          count += 1;
+          var at = new Date().toLocaleTimeString();
+          status.textContent = '已回传 ' + count + ' 次 · ' + at;
+          var payload = JSON.stringify({count: count, at: at});
+          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+            window.ReactNativeWebView.postMessage(payload);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+/**
+ * The local H5 page as a string, for the WebView's `source={{html}}` prop.
+ *
+ * Metro 0.72 has no HTML module loader, so the canonical file stays at
+ * `src/web/demo.html` and this module carries the same text into the JS
+ * bundle. `__tests__/demoHtml.test.ts` fails if the two drift apart; edit
+ * the HTML file, then regenerate this file with:
+ *
+ *   npm run build:demo-html
+ *
+ * `source={{html}}` keeps the page offline and works on all three platforms
+ * (a `file://` path would be platform-specific).
+ */
+export const DEMO_HTML =
+  '<!doctype html>\n<html lang="zh-CN">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>H5 演示</title>\n    <script>\n      // RN replaces this value when it restores the page after a blocked\n      // navigation; 0 is the normal first load.\n      window.__H5_INITIAL_COUNT__ = 0;\n    </script>\n    <style>\n      :root {\n        color-scheme: light;\n      }\n      body {\n        margin: 0;\n        padding: 24px 20px;\n        background: #f5f5f5;\n        color: #212121;\n        font-family: -apple-system, BlinkMacSystemFont, \'HarmonyOS Sans\', sans-serif;\n      }\n      .card {\n        background: #ffffff;\n        border-radius: 16px;\n        padding: 24px 20px;\n        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);\n      }\n      .eyebrow {\n        margin: 0;\n        color: #2563eb;\n        font-size: 12px;\n        font-weight: 700;\n        letter-spacing: 0.08em;\n      }\n      h1 {\n        margin: 8px 0 12px;\n        font-size: 26px;\n      }\n      p {\n        line-height: 1.6;\n        font-size: 15px;\n        color: #555555;\n      }\n      code {\n        color: #212121;\n        background: #eef2ff;\n        border-radius: 4px;\n        padding: 1px 4px;\n      }\n      button {\n        margin-top: 12px;\n        width: 100%;\n        border: 0;\n        border-radius: 12px;\n        padding: 14px 16px;\n        background: #2563eb;\n        color: #ffffff;\n        font-size: 16px;\n        font-weight: 700;\n      }\n      button:active {\n        opacity: 0.8;\n      }\n      .status {\n        margin: 12px 0 0;\n        color: #2563eb;\n        font-weight: 600;\n      }\n      .danger {\n        display: block;\n        margin-top: 24px;\n        padding-top: 16px;\n        border-top: 1px solid #eeeeee;\n        color: #b91c1c;\n        font-size: 14px;\n        text-decoration: none;\n      }\n    </style>\n  </head>\n  <body>\n    <main class="card">\n      <p class="eyebrow">LOCAL HTML · NO NETWORK</p>\n      <h1>H5 演示页</h1>\n      <p>\n        这个页面来自 App 内置的 <code>src/web/demo.html</code>，不依赖外网。\n        点下面的按钮，把数据通过 <code>ReactNativeWebView.postMessage</code>\n        回传给 RN。\n      </p>\n      <button id="send" type="button">回传给 RN</button>\n      <p class="status" id="status">还没有回传</p>\n      <a class="danger" href="tuitui://h5-demo/landing">\n        模拟 360 扫码落地页（tuitui://，应被拦截）\n      </a>\n    </main>\n    <script>\n      (function () {\n        var count = window.__H5_INITIAL_COUNT__ || 0;\n        var status = document.getElementById(\'status\');\n        if (count > 0) {\n          status.textContent = \'已回传 \' + count + \' 次（页面已恢复，可继续）\';\n        }\n        document.getElementById(\'send\').addEventListener(\'click\', function () {\n          count += 1;\n          var at = new Date().toLocaleTimeString();\n          status.textContent = \'已回传 \' + count + \' 次 · \' + at;\n          var payload = JSON.stringify({count: count, at: at});\n          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {\n            window.ReactNativeWebView.postMessage(payload);\n          }\n        });\n      })();\n    </script>\n  </body>\n</html>\n';
+
+/**
+ * The same document with the H5 counter seeded from RN. Used when the page is
+ * restored after a blocked navigation, so the visible count keeps increasing
+ * instead of restarting at zero.
+ */
+export function demoHtmlWithInitialCount(count: number): string {
+  const marker = 'window.__H5_INITIAL_COUNT__ = 0;';
+  if (!DEMO_HTML.includes(marker)) {
+    throw new Error('demo.html is missing the __H5_INITIAL_COUNT__ marker');
+  }
+  return DEMO_HTML.replace(marker, `window.__H5_INITIAL_COUNT__ = ${count};`);
+}
