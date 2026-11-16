@@ -1,14 +1,12 @@
 /**
- * Product list screen: the six catalogue products and the cart entry.
+ * Product list screen: the six catalogue products and the cart summary.
  *
- * Tapping a card opens the detail screen; the card's own 「加入购物车」 button
- * adds one unit. The header shows the total unit count (`购物车 3`), which is
- * derived by the cart reducer, so it changes on the same render as the add.
- *
- * The header layout follows the KMP build's `ui/ProductListScreen.kt`: a title
- * row, a one-line subtitle, three small outlined entries (扫一扫 / 二维码 /
- * 平台能力) and the H5 result panel. The three entries used to be large cards
- * here; the KMP screen keeps them as 12sp chips on one right-aligned row.
+ * The layout is the KMP build's `ui/ProductListScreen.kt`: a fixed header
+ * (title row, one-line subtitle, three small entries, H5 result panel) and a
+ * fixed bottom cart summary, with only the product rows scrolling between them.
+ * Tapping a row opens the detail screen; the row's own 「加入购物车」 button adds
+ * one unit, and the bottom summary's count/amount come from the cart reducer so
+ * they change on the same render as the add.
  */
 import React from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
@@ -16,6 +14,7 @@ import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {formatPrice, Product, PRODUCTS} from '../data/products';
 import {CartState} from '../state/cart';
 import {colors} from '../ui/theme';
+import ProductImage from '../ui/ProductImage';
 
 type Props = {
   cart: CartState;
@@ -39,29 +38,34 @@ function ProductCard({
   onAdd: () => void;
 }): JSX.Element {
   return (
-    <View style={styles.card} testID={`product-${product.id}`}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${product.title} 详情`}
+      onPress={onOpen}
+      style={({pressed}) => [styles.card, pressed && styles.pressed]}
+      testID={`product-${product.id}`}>
+      <ProductImage
+        product={product}
+        url={product.thumbnailUrl}
+        style={styles.cardImage}
+      />
+      <View style={styles.cardText}>
+        <Text numberOfLines={1} style={styles.productTitle}>
+          {product.title}
+        </Text>
+        <Text style={styles.productPrice}>
+          {formatPrice(product.priceYuan)}
+        </Text>
+      </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${product.title} 详情`}
-        onPress={onOpen}
-        style={styles.cardBody}
-        testID={`open-${product.id}`}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.productTitle}>{product.title}</Text>
-          <Text style={styles.productPrice}>
-            {formatPrice(product.priceYuan)}
-          </Text>
-        </View>
-        <Text style={styles.productDescription}>{product.description}</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
+        accessibilityLabel={`把 ${product.title} 加入购物车`}
         onPress={onAdd}
         style={({pressed}) => [styles.addButton, pressed && styles.pressed]}
         testID={`add-${product.id}`}>
         <Text style={styles.addButtonText}>加入购物车</Text>
       </Pressable>
-    </View>
+    </Pressable>
   );
 }
 
@@ -111,6 +115,34 @@ function H5Panel({onOpen}: {onOpen: () => void}): JSX.Element {
   );
 }
 
+/**
+ * The fixed bottom summary, matching KMP's `CartPanel` (without its per-item
+ * rows): label, count, payable and amount, plus the empty-cart hint. The cart
+ * page itself keeps the editable rows.
+ */
+function CartSummary({cart}: {cart: CartState}): JSX.Element {
+  return (
+    <View style={styles.cartPanel} testID="cart-summary">
+      <View style={styles.cartRow}>
+        <Text style={styles.cartLabel}>购物车</Text>
+        <Text style={styles.cartCount} testID="cart-summary-count">
+          {cart.count === 0 ? '还没有商品' : `${cart.count} 件商品`}
+        </Text>
+        <View style={styles.cartSpacer} />
+        <Text style={styles.payableLabel}>应付</Text>
+        <Text style={styles.payableAmount} testID="cart-summary-payable">
+          {formatPrice(cart.totalYuan)}
+        </Text>
+      </View>
+      {cart.count === 0 ? (
+        <Text style={styles.cartEmpty} testID="cart-summary-empty">
+          购物车还是空的，点商品的「加入购物车」
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export default function ProductListScreen({
   cart,
   onOpenProduct,
@@ -122,10 +154,7 @@ export default function ProductListScreen({
   onOpenCapabilities,
 }: Props): JSX.Element {
   return (
-    <ScrollView
-      style={styles.scrollView}
-      contentContainerStyle={styles.content}
-      testID="product-list">
+    <View style={styles.screen}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.heading}>商品列表</Text>
@@ -152,29 +181,39 @@ export default function ProductListScreen({
         </View>
       </View>
       <H5Panel onOpen={onOpenWebPage} />
-      {PRODUCTS.map(product => (
-        <ProductCard
-          key={product.id}
-          product={product}
-          onOpen={() => onOpenProduct(product.id)}
-          onAdd={() => onAddToCart(product.id)}
-        />
-      ))}
-    </ScrollView>
+      {/*
+       * KMP's HarmonyOS list puts a 36dp ArkUI-interop row here (the light-blue
+       * "这一行是 ArkUI 原生 Text" demo). RN has no ArkUI embed, but the row's
+       * height is what places product row 1 at y=995 in the KMP dump, so keep
+       * the slot as blank space instead of inventing a fake native row.
+       */}
+      <View style={styles.nativeSlot} />
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        testID="product-list">
+        {PRODUCTS.map(product => (
+          <ProductCard
+            key={product.id}
+            product={product}
+            onOpen={() => onOpenProduct(product.id)}
+            onAdd={() => onAddToCart(product.id)}
+          />
+        ))}
+      </ScrollView>
+      <CartSummary cart={cart} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
+  screen: {
     flex: 1,
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 24,
+    backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 4,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 8,
   },
   headerRow: {
@@ -232,6 +271,7 @@ const styles = StyleSheet.create({
   h5Panel: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: 16,
     marginVertical: 4,
     padding: 12,
     borderRadius: 14,
@@ -273,50 +313,119 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.surface,
   },
+  nativeSlot: {
+    height: 36,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingVertical: 4,
+  },
   card: {
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-  },
-  cardBody: {
-    borderRadius: 8,
-  },
-  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginVertical: 6,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
+  },
+  cardImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+  },
+  cardText: {
+    flex: 1,
+    paddingLeft: 14,
   },
   productTitle: {
-    flex: 1,
-    marginRight: 12,
+    alignSelf: 'flex-start',
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '700',
+    lineHeight: 24,
     color: colors.textPrimary,
   },
   productPrice: {
-    fontSize: 17,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    fontSize: 15,
     fontWeight: '700',
+    lineHeight: 24,
     color: colors.accent,
   },
-  productDescription: {
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-  },
   addButton: {
-    alignSelf: 'flex-start',
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    marginLeft: 8,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
     backgroundColor: colors.accent,
   },
   addButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    lineHeight: 20,
+    fontWeight: '500',
     color: colors.surface,
+  },
+  cartPanel: {
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    // 8dp hint bottom margin + 12dp panel padding; the RN surface already
+    // stops above the HarmonyOS gesture bar, like KMP's safeDrawingPadding.
+    paddingBottom: 12,
+    backgroundColor: colors.surface,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: {width: 0, height: -2},
+  },
+  cartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cartLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 24,
+    color: colors.textPrimary,
+  },
+  cartCount: {
+    marginLeft: 8,
+    fontSize: 13,
+    lineHeight: 24,
+    color: colors.textSecondary,
+  },
+  cartSpacer: {
+    flex: 1,
+  },
+  payableLabel: {
+    fontSize: 13,
+    lineHeight: 24,
+    color: colors.textSecondary,
+  },
+  payableAmount: {
+    marginLeft: 6,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 24,
+    color: colors.accent,
+  },
+  cartEmpty: {
+    marginTop: 18,
+    marginBottom: 8,
+    fontSize: 14,
+    lineHeight: 24,
+    textAlign: 'center',
+    color: colors.textHint,
   },
   pressed: {
     opacity: 0.7,
