@@ -1,20 +1,22 @@
 /**
- * The scan page: camera preview, realtime QR decoding and the album fallback.
+ * The scan page: camera preview, realtime QR decoding and two fallbacks.
  *
- * Preview and realtime decoding both come from the HarmonyOS vision-camera
+ * Preview and realtime decoding come from the HarmonyOS vision-camera
  * adaptation: its `codeScanner` prop drives Scan Kit's custom preview on an
  * `XComponent` surface, so decoding happens inside the native scan session
  * (frame processors do not exist on RNOH 0.72). JS only receives
  * `onCodeScanned` events through `DeviceEventEmitter`.
  *
- * The album path goes through the HarmonyOS image-picker adaptation, which
- * returns the chosen image as base64; `src/qr/imageDecode.ts` decodes it with
- * jsqr and pure-JS image decoders.
+ * Scan Kit's custom preview is less forgiving than the system scanner on
+ * reflective screens, so the page also offers:
+ * - 「用系统扫码」: Scan Kit's default scanning UI, the most reliable path;
+ * - 「从相册选图」: image-picker + native Scan Kit image decoding (fast), with
+ *   the pure-JS `jsqr` path as the fallback when the native module is absent.
  *
  * Both adaptations are HarmonyOS-only, so `ScanScreen` loads the camera module
  * lazily (`src/native/cameraModule.ts`) and renders an explanation on the other
  * platforms instead of pulling a native module that is not linked there. If the
- * camera cannot start, the page says so and the album button stays usable.
+ * camera cannot start, the page says so and the fallbacks stay usable.
  */
 import React, {useCallback, useMemo, useRef, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
@@ -22,6 +24,11 @@ import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {loadCameraModule} from '../native/cameraModule';
 import type {CameraModule} from '../native/cameraModule';
 import {launchImageLibrary} from '../native/imagePicker';
+import {
+  decodeImage,
+  isNativeScanAvailable,
+  startSystemScan,
+} from '../native/scanKit';
 import {decodeQrFromBase64} from '../qr/imageDecode';
 import {colors} from '../ui/theme';
 
@@ -35,8 +42,8 @@ type Outcome =
       kind: 'scanned';
       value: string;
       type: string;
-      source: 'camera' | 'album';
-      /** Image size for album results, shown as evidence next to the value. */
+      source: 'camera' | 'album' | 'system';
+      /** Image size + decoder + duration for album results. */
       detail?: string;
     }
   | {kind: 'camera-error'; message: string};
@@ -86,8 +93,9 @@ function ScanContent({
 }: Props & {camera: CameraModule}): JSX.Element {
   const {Camera, useCodeScanner} = camera;
   const [outcome, setOutcome] = useState<Outcome>({kind: 'idle'});
-  const [albumError, setAlbumError] = useState<string | null>(null);
+  const [fallbackError, setFallbackError] = useState<string | null>(null);
   const [albumBusy, setAlbumBusy] = useState(false);
+  const [systemBusy, setSystemBusy] = useState(false);
   // The native scan session keeps running after the first hit, so identical
   // results arrive repeatedly; only the first one for a given value is shown.
   const lastValue = useRef<string | null>(null);
@@ -131,71 +139,159 @@ function ScanContent({
 
   const rescan = useCallback(() => {
     lastValue.current = null;
-    setAlbumError(null);
+    setFallbackError(null);
     setOutcome({kind: 'idle'});
   }, []);
 
   const pickFromAlbum = useCallback(async () => {
-    setAlbumError(null);
+    lastValue.current = null;
+    setFallbackError(null);
     setAlbumBusy(true);
+    // The image-picker callback is asynchronous; `busy` keeps the buttons
+    // disabled until the decode below finishes.
     try {
+      const nativeDecodeAvailable = isNativeScanAvailable();
       const result = await launchImageLibrary({
         mediaType: 'photo',
         selectionLimit: 1,
-        // Downscale in the picker so the base64 buffer stays small; jsqr
-        // scans whatever resolution comes back.
         maxWidth: 2000,
         maxHeight: 2000,
-        includeBase64: true,
+        // Native decoding reads the cache file directly; only the JS fallback
+        // needs the (memory-heavy) base64 of the original image.
+        includeBase64: !nativeDecodeAvailable,
       });
       if (result.didCancel) {
         return;
       }
       if (result.errorCode !== undefined) {
-        setAlbumError(
+        setFallbackError(
           `无法打开相册：${result.errorMessage ?? result.errorCode}`,
         );
         return;
       }
       const asset = result.assets?.[0];
       if (asset === undefined) {
-        setAlbumError('没有拿到图片');
+        setFallbackError('没有拿到图片');
         return;
       }
+      const nativeStartedAt = Date.now();
+      if (nativeDecodeAvailable && asset.uri !== undefined) {
+        const native = await decodeImage(asset.uri);
+        if (native.ok) {
+          if (__DEV__) {
+            console.log(
+              `[scan] album decode method=scankit ms=${
+                Date.now() - nativeStartedAt
+              }`,
+            );
+          }
+          lastValue.current = native.values[0];
+          setOutcome({
+            kind: 'scanned',
+            value: native.values[0],
+            type: 'qr',
+            source: 'album',
+            detail: imageDetail(
+              asset.width,
+              asset.height,
+              'ScanKit',
+              Date.now() - nativeStartedAt,
+            ),
+          });
+          return;
+        }
+        if (__DEV__) {
+          console.log(
+            `[scan] album scankit failed ms=${Date.now() - nativeStartedAt}: ${
+              native.error
+            }`,
+          );
+        }
+      }
+
       if (asset.base64 === undefined) {
-        setAlbumError(
+        setFallbackError(
           '图片选择器没有返回 base64，无法在 JS 里解码这张图；' +
             `返回的 URI 是 ${asset.uri ?? '空'}`,
         );
         return;
       }
+      const startedAt = Date.now();
       const decoded = decodeQrFromBase64(asset.base64);
+      const elapsed = Date.now() - startedAt;
+      if (__DEV__) {
+        console.log(
+          `[scan] album decode method=jsqr ms=${elapsed} ok=${decoded.ok}`,
+        );
+      }
       if (!decoded.ok) {
-        setAlbumError(decoded.reason);
+        setFallbackError(decoded.reason);
         return;
       }
       lastValue.current = decoded.value;
-      const detail =
-        asset.width !== undefined && asset.height !== undefined
-          ? `${asset.width}×${asset.height}`
-          : undefined;
       setOutcome({
         kind: 'scanned',
         value: decoded.value,
         type: 'qr',
         source: 'album',
-        detail,
+        detail: imageDetail(asset.width, asset.height, 'jsqr', elapsed),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setAlbumError(`无法读取相册图片：${message}`);
+      setFallbackError(`无法读取相册图片：${message}`);
     } finally {
       setAlbumBusy(false);
     }
   }, []);
 
+  const openSystemScan = useCallback(async () => {
+    lastValue.current = null;
+    setFallbackError(null);
+    setSystemBusy(true);
+    const startedAt = Date.now();
+    try {
+      const result = await startSystemScan();
+      if (__DEV__) {
+        console.log(
+          `[scan] system scan ms=${Date.now() - startedAt} ok=${result.ok}`,
+        );
+      }
+      if (!result.ok) {
+        // A plain user cancel is silent; a cancel that carries an error (for
+        // example Scan Kit's 1000500001) is reported.
+        if (result.error !== undefined) {
+          setFallbackError(result.error);
+        }
+        return;
+      }
+      lastValue.current = result.value;
+      setOutcome({
+        kind: 'scanned',
+        value: result.value,
+        type: 'qr',
+        source: 'system',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setFallbackError(`系统扫码失败：${message}`);
+    } finally {
+      setSystemBusy(false);
+    }
+  }, []);
+
   const cameraUnavailable = outcome.kind === 'camera-error';
-  const cameraActive = outcome.kind !== 'scanned' && !albumBusy;
+  const cameraActive = outcome.kind !== 'scanned' && !albumBusy && !systemBusy;
+  const busy = albumBusy || systemBusy;
+
+  let statusText: string;
+  if (cameraUnavailable) {
+    statusText = '相机没有启动，请用系统扫码或相册解码';
+  } else if (outcome.kind === 'idle') {
+    statusText =
+      '正在扫描 · 对准二维码保持 10–20cm，别晃动；扫不动就用系统扫码';
+  } else {
+    statusText = '';
+  }
 
   return (
     <View style={styles.screen} testID="scan-screen">
@@ -207,7 +303,7 @@ function ScanContent({
             <Text style={styles.cameraFallbackTitle}>相机不可用</Text>
             <Text style={styles.cameraFallbackText}>{outcome.message}</Text>
             <Text style={styles.cameraFallbackText}>
-              请用下面的「从相册选图」解析二维码。
+              请用下面的「用系统扫码」或「从相册选图」。
             </Text>
           </View>
         ) : (
@@ -232,8 +328,12 @@ function ScanContent({
         {outcome.kind === 'scanned' ? (
           <View style={styles.resultCard} testID="scan-result">
             <Text style={styles.resultLabel}>
-              {outcome.source === 'camera' ? '相机识别' : '相册识别'} ·{' '}
-              {outcome.type}
+              {outcome.source === 'camera'
+                ? '相机识别'
+                : outcome.source === 'system'
+                ? '系统扫码'
+                : '相册识别'}{' '}
+              · {outcome.type}
               {outcome.detail === undefined ? '' : ` · ${outcome.detail}`}
             </Text>
             <Text style={styles.resultValue} selectable>
@@ -250,26 +350,39 @@ function ScanContent({
           </View>
         ) : (
           <Text style={styles.hint} testID="scan-status">
-            {cameraUnavailable
-              ? '相机没有启动，用的是相册解码'
-              : '把二维码放进取景框，识别结果会显示在这里'}
+            {statusText}
           </Text>
         )}
 
-        {albumError === null ? null : (
-          <Text style={styles.error} testID="scan-album-error">
-            {albumError}
+        {fallbackError === null ? null : (
+          <Text style={styles.error} testID="scan-fallback-error">
+            {fallbackError}
           </Text>
         )}
 
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="用系统扫码"
+          disabled={busy}
+          onPress={openSystemScan}
+          style={({pressed}) => [
+            styles.primary,
+            (pressed || busy) && styles.pressed,
+          ]}
+          testID="scan-system">
+          <Text style={styles.primaryText}>
+            {systemBusy ? '正在打开系统扫码…' : '用系统扫码（识别率最好）'}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel="从相册选图"
-          disabled={albumBusy}
+          disabled={busy}
           onPress={pickFromAlbum}
           style={({pressed}) => [
             styles.secondary,
-            (pressed || albumBusy) && styles.pressed,
+            (pressed || busy) && styles.pressed,
           ]}
           testID="scan-album">
           <Text style={styles.secondaryText}>
@@ -279,6 +392,17 @@ function ScanContent({
       </View>
     </View>
   );
+}
+
+function imageDetail(
+  width: number | undefined,
+  height: number | undefined,
+  method: string,
+  milliseconds: number,
+): string {
+  const size =
+    width !== undefined && height !== undefined ? `${width}×${height} · ` : '';
+  return `${size}${method} ${milliseconds}ms`;
 }
 
 const styles = StyleSheet.create({

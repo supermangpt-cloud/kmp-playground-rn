@@ -7,15 +7,22 @@
  * adaptation. HEIC/HEIF is not supported by either decoder and is reported as
  * such instead of being silently treated as "no QR code".
  *
- * Big photos are downscaled to `MAX_DIMENSION` first with nearest-neighbour
- * sampling: `jsqr` scans every pixel, and a 12 MP camera photo would otherwise
- * spend seconds in Hermes for a QR code that is already large in the frame.
+ * The scan is two-stage so the common case is fast: `jsqr` first runs on a
+ * `SCAN_DIMENSION`-pixel copy (800 px: a sixth of the pixels of 2000 px) with
+ * `inversionAttempts: 'dontInvert'` (halves the work again, and our codes are
+ * dark-on-light). Only when that misses is the image scanned again at
+ * `MAX_DIMENSION`. `jsqr` scans every pixel sequentially in Hermes, so this
+ * matters: 2000 px + inverted-attempt fallback took seconds on a phone
+ * screenshot, 800 px without inversion takes well under a second.
  */
 import jsQR from 'jsqr';
 import jpeg from 'jpeg-js';
 import UPNG from 'upng-js';
 
-/** Longest side the detector scans. Bigger images are downscaled first. */
+/** Fast-path longest side. Most screenshots contain a large code. */
+export const SCAN_DIMENSION = 800;
+
+/** Fallback longest side for small codes in a large photo. */
 export const MAX_DIMENSION = 2000;
 
 export type ImageDecodeResult =
@@ -30,34 +37,64 @@ type DecodedImage = {
 };
 
 export function decodeQrFromBase64(base64: string): ImageDecodeResult {
+  const decoded = decodeImageBytes(base64);
+  if (!decoded.ok) {
+    return decoded;
+  }
+  const image = decoded.image;
+
+  const first = scan(image, SCAN_DIMENSION);
+  if (first !== null) {
+    return {ok: true, value: first};
+  }
+  const second = scan(image, MAX_DIMENSION);
+  if (second !== null) {
+    return {ok: true, value: second};
+  }
+  return {ok: false, reason: '图片里没有识别到二维码'};
+}
+
+type DecodedBytes =
+  | {ok: true; image: DecodedImage}
+  | {ok: false; reason: string};
+
+function decodeImageBytes(base64: string): DecodedBytes {
   const bytes = base64ToBytes(base64);
   if (bytes.length === 0) {
     return {ok: false, reason: '图片内容为空'};
   }
 
-  let image: DecodedImage;
   const kind = detectImageKind(bytes);
   try {
     if (kind === 'jpeg') {
       const raw = jpeg.decode(bytes, {useTArray: true});
-      image = {width: raw.width, height: raw.height, data: raw.data};
-    } else if (kind === 'png') {
+      return {
+        ok: true,
+        image: {width: raw.width, height: raw.height, data: raw.data},
+      };
+    }
+    if (kind === 'png') {
       const png = UPNG.decode(toArrayBuffer(bytes));
       const rgba = UPNG.toRGBA8(png)[0];
-      image = {
-        width: png.width,
-        height: png.height,
-        data: new Uint8Array(rgba),
+      return {
+        ok: true,
+        image: {
+          width: png.width,
+          height: png.height,
+          data: new Uint8Array(rgba),
+        },
       };
-    } else {
-      return {ok: false, reason: unsupportedKindMessage(kind)};
     }
+    return {ok: false, reason: unsupportedKindMessage(kind)};
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {ok: false, reason: `图片解码失败：${message}`};
   }
+}
 
-  const scaled = downscale(image, MAX_DIMENSION);
+/** Runs jsqr on a copy whose longest side is at most `maxDimension`. */
+function scan(image: DecodedImage, maxDimension: number): string | null {
+  const scaled = downscale(image, maxDimension);
   try {
     const result = jsQR(
       new Uint8ClampedArray(
@@ -67,14 +104,14 @@ export function decodeQrFromBase64(base64: string): ImageDecodeResult {
       ),
       scaled.width,
       scaled.height,
+      {inversionAttempts: 'dontInvert'},
     );
     if (result === null || result.data.length === 0) {
-      return {ok: false, reason: '图片里没有识别到二维码'};
+      return null;
     }
-    return {ok: true, value: result.data};
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {ok: false, reason: `二维码识别失败：${message}`};
+    return result.data;
+  } catch {
+    return null;
   }
 }
 

@@ -5,6 +5,7 @@
 
 #include "ImagePickerTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
+#include "ScanKitTurboModule.h"
 #include "RNOH/Package.h"
 #include "RNOH/TurboModuleFactory.h"
 
@@ -33,6 +34,11 @@ class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
     // needs for `launchCamera` / `launchImageLibrary`.
     if (name == "ImagePicker") {
       return std::make_shared<ImagePickerTurboModule>(ctx, name);
+    }
+    // The app's Scan Kit bridge: native still-image decoding and the system
+    // scan page fallback (promise-returning methods).
+    if (name == "ScanKit") {
+      return std::make_shared<ScanKitTurboModule>(ctx, name);
     }
     return nullptr;
   }

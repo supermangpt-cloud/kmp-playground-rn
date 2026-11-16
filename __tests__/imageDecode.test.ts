@@ -16,6 +16,7 @@ import {
   base64ToBytes,
   decodeQrFromBase64,
   MAX_DIMENSION,
+  SCAN_DIMENSION,
 } from '../src/qr/imageDecode';
 
 const FIXTURE_TEXT = 'KMP RN 相册解码 2026-11-16';
@@ -75,8 +76,9 @@ it('decodes base64 to the original bytes', () => {
   expect(Array.from(bytes)).toEqual([0, 1, 2, 250, 251, 252]);
 });
 
-it('limits the scanned side to MAX_DIMENSION', () => {
-  // A 1x1 QR can be found at any size, so this only asserts the constant is
-  // the value the page passes to the picker's resize hint.
+it('scans the fast path at 800 px and falls back to 2000 px', () => {
+  // The first pass keeps the common case fast; the larger fallback only runs
+  // when the small copy misses a code.
+  expect(SCAN_DIMENSION).toBe(800);
   expect(MAX_DIMENSION).toBe(2000);
 });

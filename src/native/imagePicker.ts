@@ -9,6 +9,8 @@
  * has no `launchImageLibrary` method. Asking the turbo module proxy directly
  * reaches the ArkTS module registered by the package's HarmonyOS adaptation.
  */
+import {getTurboModule} from './turboModule';
+
 type PickerOptions = {
   mediaType?: 'photo' | 'video' | 'mixed';
   includeBase64?: boolean;
@@ -41,8 +43,6 @@ type NativeImagePicker = {
   ) => void;
 };
 
-type TurboModuleProxy = (name: string) => NativeImagePicker | null;
-
 /**
  * Opens the system photo picker and resolves with the chosen image.
  *
@@ -52,19 +52,7 @@ type TurboModuleProxy = (name: string) => NativeImagePicker | null;
 export function launchImageLibrary(
   options: PickerOptions,
 ): Promise<PickerResult> {
-  const proxy = (global as unknown as {__turboModuleProxy?: TurboModuleProxy})
-    .__turboModuleProxy;
-  if (typeof proxy !== 'function') {
-    return Promise.reject(new Error('运行时不支持 Turbo Module'));
-  }
-
-  let picker: NativeImagePicker | null;
-  try {
-    picker = proxy('ImagePicker');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return Promise.reject(new Error(`无法获取 ImagePicker 模块：${message}`));
-  }
+  const picker = getTurboModule<NativeImagePicker>('ImagePicker');
   if (picker === null || typeof picker.launchImageLibrary !== 'function') {
     return Promise.reject(
       new Error('ImagePicker 模块没有注册（launchImageLibrary 不存在）'),
