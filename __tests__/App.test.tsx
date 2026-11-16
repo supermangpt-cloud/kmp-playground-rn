@@ -117,3 +117,38 @@ it('does not discount the ¥299 speaker', () => {
     tree!.unmount();
   });
 });
+
+// The 平台能力 chip was on the home header before the page existed; this is the
+// navigation the ticket adds, plus the back step the acceptance checks.
+it('opens the capability page from the home header and comes back', () => {
+  let tree: renderer.ReactTestRenderer | undefined;
+  renderer.act(() => {
+    tree = renderer.create(<App />);
+  });
+
+  expect(
+    tree!.root.findAllByProps({testID: 'capabilities-screen'}),
+  ).toHaveLength(0);
+
+  renderer.act(() => {
+    tree!.root.findByProps({testID: 'capabilities-entry'}).props.onPress();
+  });
+
+  expect(
+    tree!.root.findAllByProps({testID: 'capabilities-screen'}).length,
+  ).toBeGreaterThan(0);
+  expect(tree!.root.findByProps({testID: 'capabilities-count'})).toBeTruthy();
+
+  renderer.act(() => {
+    tree!.root.findByProps({testID: 'capabilities-back'}).props.onPress();
+  });
+
+  expect(tree!.root.findByProps({testID: 'product-list'})).toBeTruthy();
+  expect(
+    tree!.root.findAllByProps({testID: 'capabilities-screen'}),
+  ).toHaveLength(0);
+
+  renderer.act(() => {
+    tree!.unmount();
+  });
+});
