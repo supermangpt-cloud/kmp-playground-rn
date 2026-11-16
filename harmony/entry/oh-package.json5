@@ -18,15 +18,10 @@
     // CAPI component implementations and the C++ turbo modules, so only the
     // CMake/PackageProvider.cpp side is registered.
     "@react-native-oh-tpl/react-native-svg": "file:../../node_modules/@react-native-oh-tpl/react-native-svg/harmony/svg.har",
-    // HarmonyOS adaptation of react-native-vision-camera 4.0.3. Unlike the
-    // deprecated 4.0.2 line this har ships C++ codegen descriptors, so the
-    // component works with this app's CAPI architecture; its code scanner uses
-    // Scan Kit's custom preview instead of a frame processor, which RNOH 0.72
-    // does not provide.
-    "@react-native-ohos/react-native-vision-camera": "file:../../node_modules/@react-native-ohos/react-native-vision-camera/harmony/vision_camera.har",
-    // HarmonyOS photo picker used by the scan page's album fallback. Its har
-    // only provides an ArkTS turbo module, so the app adds the C++ method map
-    // it needs under the CAPI architecture (ImagePickerTurboModule.h).
+    // HarmonyOS photo picker used by the platform-capability page's album
+    // decode. Its har only provides an ArkTS turbo module, so the app adds the
+    // C++ method map it needs under the CAPI architecture
+    // (ImagePickerTurboModule.h).
     "@react-native-oh-tpl/react-native-image-picker": "file:../../node_modules/@react-native-oh-tpl/react-native-image-picker/harmony/image_picker.har"
   }
 }

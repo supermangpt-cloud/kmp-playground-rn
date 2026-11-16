@@ -13,10 +13,5 @@ module.exports = {
     // this Jest preset cannot mount. The encoder is tested directly instead.
     '^@react-native-oh-tpl/react-native-qrcode-svg$':
       '<rootDir>/__mocks__/react-native-qrcode-svg.js',
-    // vision-camera registers a CAPI view + turbo module at import time and
-    // image-picker is an ArkTS turbo module; neither can load in Jest. The
-    // mocks expose the props/callbacks the scan page uses.
-    '^@react-native-ohos/react-native-vision-camera$':
-      '<rootDir>/__mocks__/react-native-vision-camera-harmony.js',
   },
 };

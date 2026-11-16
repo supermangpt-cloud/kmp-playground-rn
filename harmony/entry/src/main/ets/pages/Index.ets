@@ -12,22 +12,18 @@ import {
 } from '@rnoh/react-native-openharmony';
 import { getRNOHPackages } from '../PackageProvider';
 import { WebView, WEB_VIEW } from '@react-native-oh-tpl/react-native-webview';
-import { VisionCameraView } from '@react-native-ohos/react-native-vision-camera';
 
 /**
  * Custom ArkTS components this app mounts from JS: the WebView adaptation's
- * `RNCWebView` and the vision-camera adaptation's `VisionCameraView` (its
- * preview is a Camera Kit XComponent, so it cannot be a CAPI view).
+ * `RNCWebView`. Its preview is a native view, so it cannot be a CAPI view.
+ *
+ * The scan page is a standalone `@Entry` page (`pages/ScanPage`) pushed by the
+ * `ScanKit` turbo module, not a custom component inside the RN tree.
  */
 @Builder
 export function buildCustomRNComponent(ctx: ComponentBuilderContext) {
   if (ctx.componentName === WEB_VIEW) {
     WebView({
-      ctx: ctx.rnComponentContext,
-      tag: ctx.tag,
-    });
-  } else if (ctx.componentName === VisionCameraView.NAME) {
-    VisionCameraView({
       ctx: ctx.rnComponentContext,
       tag: ctx.tag,
     });
@@ -70,7 +66,9 @@ struct Index {
             enableNDKTextMeasuring: true,
             enableBackgroundExecutor: false,
             enableCAPIArchitecture: true,
-            arkTsComponentNames: [VisionCameraView.NAME]
+            // This app registers no custom ArkTS views: RNCWebView comes from
+            // the WebView package and the scan page is a standalone @Entry page.
+            arkTsComponentNames: []
           },
           initialProps: {} as Record<string, string>,
           appKey: 'KmpPlaygroundRn',
