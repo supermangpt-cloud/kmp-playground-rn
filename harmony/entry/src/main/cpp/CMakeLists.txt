@@ -22,9 +22,17 @@ set(WITH_HITRACE_SYSTRACE 1) # for other CMakeLists.txt files to use
 
 add_subdirectory("${RNOH_CPP_DIR}" ./rn)
 
+# react-native-webview's HarmonyOS adaptation is not autolinked (this project
+# has no autolinking step), so its C++ package is added by hand from the ohpm
+# dependency created by `ohpm install --all`.
+add_subdirectory(
+    "${OH_MODULE_DIR}/@react-native-oh-tpl/react-native-webview/src/main/cpp"
+    ./webview)
+
 add_library(rnoh_app SHARED
     "./PackageProvider.cpp"
     "${RNOH_CPP_DIR}/RNOHAppNapiBridge.cpp"
 )
 
 target_link_libraries(rnoh_app PUBLIC rnoh)
+target_link_libraries(rnoh_app PUBLIC rnoh_webview)

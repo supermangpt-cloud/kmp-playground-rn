@@ -9,6 +9,9 @@
     // Install from the ohpm registry instead of the official tester's local
     // file: path; this repository is a standalone app, not a checkout of
     // ohos_react_native.
-    "@rnoh/react-native-openharmony": "0.72.140"
+    "@rnoh/react-native-openharmony": "0.72.140",
+    // HarmonyOS adaptation of react-native-webview. It is not autolinked, so
+    // the prebuilt har from node_modules is linked manually here.
+    "@react-native-oh-tpl/react-native-webview": "file:../../node_modules/@react-native-oh-tpl/react-native-webview/harmony/rn_webview.har"
   }
 }

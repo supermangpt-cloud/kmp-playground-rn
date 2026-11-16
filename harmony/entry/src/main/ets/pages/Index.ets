@@ -11,13 +11,20 @@ import {
   TraceJSBundleProviderDecorator
 } from '@rnoh/react-native-openharmony';
 import { getRNOHPackages } from '../PackageProvider';
+import { WebView, WEB_VIEW } from '@react-native-oh-tpl/react-native-webview';
 
 /**
- * No custom ArkTS components are registered by this app; the builder still has
- * to be passed to RNApp.
+ * The only custom ArkTS component in this app is the WebView adaptation's
+ * `RNCWebView`; register it under the component name RN sends from JS.
  */
 @Builder
 export function buildCustomRNComponent(ctx: ComponentBuilderContext) {
+  if (ctx.componentName === WEB_VIEW) {
+    WebView({
+      ctx: ctx.rnComponentContext,
+      tag: ctx.tag,
+    });
+  }
 }
 
 const wrappedCustomRNComponentBuilder = wrapBuilder(buildCustomRNComponent);

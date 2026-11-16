@@ -17,6 +17,7 @@ type Props = {
   onOpenProduct: (productId: string) => void;
   onOpenCart: () => void;
   onAddToCart: (productId: string) => void;
+  onOpenWebPage: () => void;
 };
 
 function ProductCard({
@@ -60,6 +61,7 @@ export default function ProductListScreen({
   onOpenProduct,
   onOpenCart,
   onAddToCart,
+  onOpenWebPage,
 }: Props): JSX.Element {
   return (
     <ScrollView
@@ -78,6 +80,20 @@ export default function ProductListScreen({
         </Pressable>
       </View>
       <Text style={styles.subheading}>KMP RN Demo · 共 6 件商品</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="打开 H5 演示页"
+        onPress={onOpenWebPage}
+        style={({pressed}) => [styles.h5Entry, pressed && styles.pressed]}
+        testID="h5-entry">
+        <View style={styles.h5EntryText}>
+          <Text style={styles.h5EntryTitle}>H5 演示</Text>
+          <Text style={styles.h5EntryHint}>
+            本地 HTML · postMessage 回传 · 拦截非法跳转
+          </Text>
+        </View>
+        <Text style={styles.h5EntryChevron}>›</Text>
+      </Pressable>
       {PRODUCTS.map(product => (
         <ProductCard
           key={product.id}
@@ -125,6 +141,33 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  h5Entry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: colors.accentSoft,
+  },
+  h5EntryText: {
+    flex: 1,
+  },
+  h5EntryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  h5EntryHint: {
+    marginTop: 3,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  h5EntryChevron: {
+    marginLeft: 12,
+    fontSize: 24,
+    color: colors.accent,
   },
   card: {
     marginBottom: 12,
