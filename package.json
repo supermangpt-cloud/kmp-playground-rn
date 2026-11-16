@@ -18,7 +18,6 @@
     "@react-native-oh-tpl/react-native-svg": "15.0.1-8",
     "@react-native-oh-tpl/react-native-webview": "13.10.3",
     "@react-native-oh/react-native-harmony": "^0.72.140",
-    "@react-native-ohos/react-native-vision-camera": "4.0.3",
     "jpeg-js": "0.4.4",
     "jsqr": "1.4.0",
     "qrcode": "1.5.4",

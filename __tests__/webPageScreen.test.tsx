@@ -119,6 +119,47 @@ describe('WebPageScreen', () => {
     });
   });
 
+  it('opens a scanned http(s) URL instead of the local document', () => {
+    let tree: renderer.ReactTestRenderer | undefined;
+    renderer.act(() => {
+      tree = renderer.create(
+        <WebPageScreen onBack={() => {}} url="https://example.com/scanned" />,
+      );
+    });
+    const screen = tree!.root;
+    const webView = screen.findByProps({testID: 'web-view'});
+    expect(webView.props.source).toEqual({uri: 'https://example.com/scanned'});
+    expect(textOf(screen.findByProps({testID: 'web-address'}))).toBe(
+      'https://example.com/scanned',
+    );
+
+    renderer.act(() => {
+      tree!.unmount();
+    });
+  });
+
+  it('ignores a non-http(s) url and keeps the local document', () => {
+    let tree: renderer.ReactTestRenderer | undefined;
+    renderer.act(() => {
+      tree = renderer.create(
+        <WebPageScreen onBack={() => {}} url="file:///tmp/demo.html" />,
+      );
+    });
+    const screen = tree!.root;
+    const webView = screen.findByProps({testID: 'web-view'});
+    expect(webView.props.source.uri).toBeUndefined();
+    expect(webView.props.source.html).toContain(
+      'window.__H5_INITIAL_COUNT__ = 0;',
+    );
+    expect(textOf(screen.findByProps({testID: 'web-address'}))).toBe(
+      'src/web/demo.html · 本地 HTML',
+    );
+
+    renderer.act(() => {
+      tree!.unmount();
+    });
+  });
+
   it('calls onBack from the header button', () => {
     const onBack = jest.fn();
     let tree: renderer.ReactTestRenderer | undefined;

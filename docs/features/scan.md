@@ -1,154 +1,213 @@
-# 扫码页：相机预览 / 实时识码 + 相册图片解码
+# 扫码页：自绘 ArkTS ScanPage + customScan（鸿蒙）
 
-这一单把「扫码」页加到 RN 版：列表页入口 → 相机预览 + 实时识码，并提供两个兜底
-（系统扫码、相册图片解码）。核心验收不是「页面能打开」，而是**二维码内容真的被
-解出来**；本文按实际验证结果写，未验证的部分明确标注。
+鸿蒙的「扫一扫」主路径现在是**独立的 ArkTS 页面** `pages/ScanPage`，用 Scan Kit 的
+`customScan` 在 `XComponent` 的 surface 上预览并识码，与 KMP 版
+`harmonyApp/entry/src/main/ets/scan/QrScan.ets` 同一套架构。RN 侧只通过
+`ScanKit.startScanner()` 打开它、等结果，不再把相机塞进 RN 视图。
 
-## 1. 依赖与兼容性结论
+上一单的相册解码（`detectBarcode.decode` + jsqr 兜底，真机 90 ms）**没有改动**，
+仍用于「平台能力」页的「图片解析二维码」。
 
-| 包 | 版本 | 说明 |
-| --- | --- | --- |
-| `@react-native-ohos/react-native-vision-camera` | `4.0.3` | 相机预览 + `codeScanner`。har 里带 C++ codegen 描述符和 turbo module delegate，能在本工程的 CAPI 架构下挂载 |
-| `@react-native-oh-tpl/react-native-image-picker` | `7.0.3-0.1.7` | 鸿蒙相册选择器（系统 `PhotoViewPicker`）。har 只有 ArkTS turbo module，本工程补了 C++ 方法表（见 1.3） |
-| `jsqr` | `1.4.0` | 纯 JS 二维码识别，作为相册解码的兜底 |
-| `jpeg-js` | `0.4.4` | 纯 JS JPEG 解码（`useTArray: true`，不依赖 Node 的 `Buffer`） |
-| `upng-js` | `2.1.0` | 纯 JS PNG 解码（内部 `pako`，无 Node 内置模块） |
+## 1. 为什么重做：vision-camera 的码类型偏移
 
-### 1.1 为什么是 vision-camera 4.0.3，而不是 4.0.2
+`@react-native-ohos/react-native-vision-camera@4.0.3` 的实时识码有一个确定性 bug：
+它把 JS 的字符串码类型映射成 HMS `ScanType` 时用了数组下标。
 
-`@react-native-oh-tpl/react-native-vision-camera@4.0.2-rc.1` 是旧线（deprecated），
-har 只有 ArkTS、没有 C++ 组件描述符。在本工程（`enableCAPIArchitecture: true`）实测：
+```typescript
+// vision-camera 的 ScanManager.ts
+private codeType = ['unknown','aztec',...,'itf','itf-14','pdf-417','qr','upc-a','upc-e']
+type = types.map(item => this.codeType.indexOf(item));   // 'qr' 的索引是 12
+```
 
-- JS 渲染 `<Camera>` 直接报
-  `requireNativeComponent: "VisionCameraView" was not found in the UIManager.`；
-- 补上 C++ delegate 让 `VisionCameraModule` 能被找到之后，组件仍然挂不上：CAPI 的
-  Fabric 必须有 `ComponentDescriptor`（4.0.3 的 `src/main/cpp/generated` 就是它）。
+而 HMS `scanCore.ScanType` 的枚举是：
 
-所以换了 4.0.3：har 自带 codegen 的 C++ 描述符、`VisionCameraPackage` 和
-turbo module delegate，按官方 ManualLink 的 CMake / `PackageProvider.cpp` 步骤接进来即可。
+```
+10 PDF417_CODE
+11 QR_CODE      ← 二维码
+12 UPC_A_CODE   ← 一维条码
+```
 
-### 1.2 实时识码走的是 Scan Kit，不是 frame processor
+`indexOf('qr')` = 12 = `UPC_A_CODE`：`codeTypes: ['qr']` 实际一直在找 UPC-A 条码。
+数组里多了一个 `'itf'`，`itf-14` 之后全部偏移 1。这就是上一单「相机预览是活的、但
+实时扫描不好使」的根因。
 
-vision-camera 官方的 HarmonyOS 兼容表里 `useFrameProcessor` 是 **不支持**，而
-`codeScanner` 是支持：适配层的 `ScanManager` 用
-`@kit.ScanKit` 的 `customScan.start({surfaceId})` 把相机预览画到 `XComponent`
-的 surface 上，识码结果通过 `onCodeScanned`（`DeviceEventEmitter`）回到 JS。因此：
+本单不 patch 这个第三方包，直接按产品要求换成与 KMP 一致的自绘页；vision-camera
+从依赖、C++、ArkTS 注册中全部移除。
 
-- 实时识码是**原生扫码会话**，没有 worklets / 新架构依赖；
-- `codeTypes: ['qr']` 只开二维码，扫码会话由 `isActive` 控制，结果展示后
-  `isActive=false` 暂停，点「继续扫描」再恢复。
+### 1.1 相册解码保持不变
 
-**识别率**：`customScan` 是「自定义预览 + 后台识码」，对**屏幕上的二维码**（反光、
-刷新率）识别率不如系统扫码页，真机体验反馈是「不太好使」。因此页面加了
-「用系统扫码（识别率最好）」兜底和明确的引导文案（对准、10–20cm、别晃动、当前
-正在扫描），不把「相机能打开」当成「实时扫码可用」。
+上一单的相册解码（`detectBarcode.decode` 原生、jsqr 纯 JS 兜底）**没有改动**，
+现挂在「平台能力」页的「图片解析二维码」行上。同一张 1260×2720 截图的基准数据
+（来自上一单，仍适用）：
 
-### 1.3 image-picker 与 Scan Kit 的 native 桥
-
-相册解码有两条路：
-
-1. **ScanKit 原生图片识码（默认）**：`detectBarcode.decode({uri})` 直接读 image-picker
-   返回的缓存文件 URI，毫秒级，支持 HEIC/JPEG/PNG；
-2. **纯 JS（兜底）**：`image-picker` 的 base64 → `jpeg-js`/`upng-js` → `jsqr`。
-
-为了调这两个能力，补了一个 app 自己的 `ScanKit` turbo module：
-
-- `harmony/entry/src/main/ets/scan/ScanKitTurboModule.ets`：
-  `decodeImage(uri)`、`startSystemScan()`，都是 Promise；
-- `harmony/entry/src/main/cpp/ScanKitTurboModule.h`：给 CAPI 架构补 `methodMap_`
-  （`ARK_ASYNC_METHOD_METADATA`），否则 RN 的 TurboModule host object 不会暴露方法；
-- `src/native/scanKit.ts`：JS 包装，走 `global.__turboModuleProxy('ScanKit')`。
-
-image-picker 本身也踩了两个坑，已修：
-
-1. **JS 包装层不可用**：`react-native-image-picker` 用
-   `global.__turboModuleProxy != null` 判断 turbo module，而 RN 0.72 的
-   `TurboModuleRegistry` 会**先**查 `NativeModules[name]`；RNOH 的 legacy 表对任意
-   名字都返回空对象，于是 JS 拿到「没有 `launchImageLibrary` 方法」的模块。
-   本工程直接调 `global.__turboModuleProxy('ImagePicker')`（`src/native/imagePicker.ts`）。
-2. **ArkTS turbo module 需要 C++ 方法表**：`ArkTSTurboModule` 默认 `methodMap_` 为空，
-   补了 `harmony/entry/src/main/cpp/ImagePickerTurboModule.h`
-   （`ARK_SCHEDULE_METHOD_METADATA(launchImageLibrary, 2)`，沿用它的回调式签名）。
-
-**URI 能不能读成像素（实测）**：能。image-picker 对图片会先 `fs.openSync` 读文件、
-`createImageSource` 取宽高，按 `maxWidth/maxHeight` 缩放后写缓存，`includeBase64: true`
-时返回原图 base64。真机上用系统截图（1260×2720）实测：base64 长度 287,892，
-原生 `detectBarcode.decode` 读出 `https://example.com`；纯 JS 路径解同一张图也得到
-同一个值。**只有原生解码不可用时才请求 base64**，避免每次选图都搬运 288KB 字符串。
-
-### 1.4 相册解码耗时（同一张 1260×2720 截图，真机实测）
-
-| 方案 | 耗时 | 说明 |
-| --- | --- | --- |
-| 改动前：`jsqr` + 2000px + 默认 `attemptBoth` | **11,716 ms** | 旧实现；用户反馈「等好长时间」 |
-| 改动后：`jsqr` + 800px + `dontInvert`（首轮命中） | **7,960 ms** | 只改了 jsQR，剩下的大头是纯 JS JPEG 解码 |
-| 改动后：ScanKit 原生 `detectBarcode.decode`（默认路径） | **75–193 ms**（常见 ~90 ms） | 页面显示 `相册识别 · qr · 1260×2000 · ScanKit 90ms` |
-
-结论：**jsQR 的参数优化只能把 11.7s 降到 8.0s**，因为 `jpeg-js` 在 Hermes 里解码
-1260×2720 的 JPEG 就占了大头，所以最终把原生解码作为默认路径，纯 JS 只作为兜底。
-两者的耗时都由页面在 `__DEV__` 下用 `console.log('[scan] album decode method=… ms=…')`
-输出；上表的数字来自同一台机器、同一张图（`docs/evidence/scan/album-input-qr.jpg`）。
-
-## 2. 鸿蒙接入
-
-| 位置 | 改动 |
+| 方案 | 耗时 |
 | --- | --- |
-| `package.json` | vision-camera 4.0.3、image-picker 适配包、jsqr / jpeg-js / upng-js |
-| `harmony/entry/oh-package.json5` | 两个 `file:` har 依赖 |
-| `harmony/oh-package.json5` | 继续用 `overrides` 把 RNOH 钉在 `0.72.140`（vision-camera har 写的是 `0.72.38`） |
-| `harmony/entry/src/main/cpp/CMakeLists.txt` | `add_subdirectory(.../react-native-vision-camera/src/main/cpp ./vision-camera)` + `target_link_libraries(rnoh_app PUBLIC rnoh_vision_camera)` |
-| `harmony/entry/src/main/cpp/PackageProvider.cpp` | `VisionCameraPackage`、`AppPackage` |
-| `harmony/entry/src/main/cpp/AppPackage.h` | `ImagePicker` / `ScanKit` 的 C++ delegate |
-| `harmony/entry/src/main/cpp/ImagePickerTurboModule.h` | image-picker 方法表 |
-| `harmony/entry/src/main/cpp/ScanKitTurboModule.h` | ScanKit 方法表 |
-| `harmony/entry/src/main/ets/PackageProvider.ets` | `VisionCameraModulePackage`、`ImagePickerViewPackage`、`ScanKitPackage` |
-| `harmony/entry/src/main/ets/scan/ScanKitTurboModule.ets` | `detectBarcode.decode` + `scanBarcode.startScanForResult` |
-| `harmony/entry/src/main/ets/pages/Index.ets` | `arkTsComponentNames: [VisionCameraView.NAME]` + `buildCustomRNComponent` 里挂 `VisionCameraView` |
-| `harmony/entry/src/main/module.json5` | `ohos.permission.CAMERA`（user_grant，理由 `camera_reason`）、`ACCELEROMETER`、`GYROSCOPE` |
-| `harmony/entry/src/main/resources/base/element/string.json` | `camera_reason` |
+| 旧实现：jsqr + 2000px + `attemptBoth` | 11,716 ms |
+| 只优化 jsQR：800px + `dontInvert` | 7,960 ms |
+| ScanKit `detectBarcode.decode`（默认路径） | 75–193 ms（常见 ~90 ms） |
 
-## 3. 实现
+历史截图：`after-album-result.png`（上一单 RN 页上的相册解码结果，该 RN 页已移除）、
+`album-input-qr.jpg`（输入图）、`after-system-scan-ui.png`（系统扫码页，保留为独立入口）。
 
-| 文件 | 内容 |
+## 2. ScanPage 的实现
+
+`harmony/entry/src/main/ets/pages/ScanPage.ets`（在 `main_pages.json` 注册，`@Entry`）：
+
+| 环节 | 做法 |
 | --- | --- |
-| `src/screens/ScanScreen.tsx` | 扫码页：预览、实时结果、系统扫码、相册入口、扫描状态/引导、相机不可用兜底、错误提示 |
-| `src/native/cameraModule.ts` | 只在 `Platform.OS === 'harmony'` 时 `require` vision-camera，避免 Android/iOS 在 import 时就找不到原生模块 |
-| `src/native/turboModule.ts` | 直接经 `__turboModuleProxy` 取模块（绕开 legacy `NativeModules` 空对象） |
-| `src/native/imagePicker.ts` | `launchImageLibrary(options, cb)` → Promise；缺模块时报原因 |
-| `src/native/scanKit.ts` | 原生图片识码 / 系统扫码的 Promise 包装 |
-| `src/qr/imageDecode.ts` | base64 → 字节 →（JPEG/PNG）→ RGBA → jsqr；两段式 800px → 2000px、`dontInvert`；HEIC/未知格式明确报「不支持」 |
-| `src/screens/ProductListScreen.tsx` / `App.tsx` | 列表入口「扫码」与 `{kind: 'scan'}` 返回栈页面 |
-| `__tests__/imageDecode.test.ts` | PNG（运行期生成）与 JPEG（fixture）都能解出同一段文本；坏图、HEIC、base64 往返、800/2000 常量 |
-| `__tests__/scanScreen.test.tsx` | 相机结果、原生相册解码、jsqr 兜底、系统扫码成功/取消/报错、相机不可用、非鸿蒙平台 |
+| 预览 surface | `XComponent({type: SURFACE, controller})` 全屏；`onLoad` 里 `controller.getXComponentSurfaceId()` 取 `surfaceId` |
+| 预览尺寸 | `onAreaChange` 取 XComponent 的 vp 宽高，`ViewControl.width/height` 与它一致（不一致会拉伸） |
+| 启动条件 | `surfaceId` 非空且宽高 > 0 才 `customScan.init` + `customScan.start`；`onLoad`、`onAreaChange`、`onPageShow` 都调用同一个 `startSession()`，先到先等，后到的补上 |
+| 扫码参数 | `scanTypes: [scanCore.ScanType.QR_CODE]`（显式枚举）、`enableMultiMode: false` |
+| 权限 | `abilityAccessCtrl.requestPermissionsFromUser` 申请 `ohos.permission.CAMERA`；拒绝时显示说明 + 「去设置」+ 「返回」 |
+| 去设置 | `startAbility` 打开 `com.huawei.hmos.settings` 的本应用详情页（`application_info_entry`），与 KMP 版一致 |
+| 回到页面 | `onPageShow` 用 `bundleManager.getBundleInfoForSelfSync(...).appInfo.accessTokenId` + `checkAccessTokenSync` 复查权限，授权了就自动开始 |
+| 结果回传 | 扫到后停扫描 → `emitter.emit(SCAN_RESULT_EVENT_ID, {scanResult: JSON})` → `router.back()`；`startScanner()` 的 Promise 在 `ScanKitTurboModule` 里 resolve |
+| 取消 | 页面「取消」、系统返回都走同一个 `finish('cancelled')`，`onBackPress` 返回 `true` 消费返回键 |
+| 生命周期 | `onPageHide` stop + release 释放相机；`onPageShow` 重新 init/start；`aboutToDisappear` 再兜底 release |
+| 失败 | `customScan.init/start` 抛错或回调带 err 时显示「相机无法启动（错误码）」+「重试」/「返回」；「返回」resolve `failed` + reason |
 
-扫码页在非鸿蒙平台显示「扫码页只在鸿蒙版提供」：相机、相册、系统扫码都依赖鸿蒙
-适配，`ScanScreen` 在渲染前才加载相机模块，避免 Android/iOS 启动即崩。
+**surfaceId 拿不到时怎么排查**（customScan 最常见的问题）：`surfaceId` 只在
+`XComponent` 的 `onLoad` 之后才有值，`getXComponentSurfaceId()` 返回空串说明 surface
+还没创建；本页把「surfaceId + 视口宽高」作为启动门槛，并在 hilog 打印
+`XComponent surface id: …` 与 `customScan started on surface … (宽x高 vp)`。真机日志
+（`A00000/…/ScanPage`）：
 
-## 4. 真机验证
+```
+ScanPage: status bar inset: 37.846154 vp
+ScanPage: XComponent surface id: 6343666697001
+ScanPage: customScan started on surface 6343666697001 (387.692308x836.923077 vp)
+```
 
-设备：`FMR0224125000567`（Mate 60 Pro / ALN-AL00，HarmonyOS 7.0.0.111，1260×2720），
-`com.example.kmp.rn.harmony` 签名 debug HAP。证据在 `docs/evidence/scan/`。
+页面在 `setWindowLayoutFullScreen(true)` 的窗口里绘制，所以相机预览可以全屏，而顶部
+「取消 / 扫一扫」栏用 `window.getWindowAvoidArea(TYPE_SYSTEM).topRect` 的 vp 高度避开
+状态栏（不是写死一个数字）。
+
+### 参数对照：KMP `QrScan.ets` ↔ 本页 `ScanPage.ets`
+
+| 参数 / 行为 | KMP `QrScan.ets` | 本页 `ScanPage.ets` |
+| --- | --- | --- |
+| `customScan.init` | `scanTypes: [scanCore.ScanType.QR_CODE]`, `enableMultiMode: false` | 相同 |
+| `ViewControl` | `width`, `height`, `surfaceId` | 相同（宽高来自 `onAreaChange` 的 vp） |
+| surface 来源 | Compose interop 传入的 `surfaceId` | `XComponent.onLoad` → `getXComponentSurfaceId()` |
+| start | `customScan.start(viewControl, callback)` | 相同 |
+| 结果处理 | `stop()` 后把文本经 napi 回传 Compose | `stop()/release()` 后经 emitter 回传 TurboModule → resolve JS Promise |
+| 停止/释放 | 结果后与页面消失时 `stop`/`release` | 相同，另外 `onPageHide` 也停 |
+| 权限 | `requestPermissionsFromUser(CAMERA)`，拒绝提示 + 设置 | 相同，并在 `onPageShow` 复查权限 |
+| 去设置 | `com.huawei.hmos.settings` + `application_info_entry` | 相同 |
+| 页面形态 | Compose 页（相机是嵌入的 ArkTS 组件） | 独立 `@Entry` ArkTS 页（RN 侧 push） |
+
+## 3. TurboModule 桥接
+
+`harmony/entry/src/main/ets/scan/ScanKitTurboModule.ets`：
+
+- `startScanner()`：先订阅 `SCAN_RESULT_EVENT_ID`（`ScanEvents.ets`，`0x5CA9`），再
+  `uiContext.getRouter().pushUrl({url: 'pages/ScanPage'})`；页面 emit 后 resolve：
+  `{status: 'ok' | 'cancelled' | 'failed', value?, reason?}`。`emitter.off` 在每次
+  resolve 后执行，`scanning` 标志防止叠开第二个扫码页。
+- `startSystemScanner()`：原来的 `scanBarcode.startScanForResult`（系统扫码页）保留，
+  作为**单独入口**，不是主路径（`enableAlbum: true`）。
+- `decodeImage(uri)`：相册解码，保持不变。
+
+C++ 方法表同步为 `decodeImage(1)` / `startScanner(0)` / `startSystemScanner(0)`
+（`harmony/entry/src/main/cpp/ScanKitTurboModule.h`；CAPI 架构下 ArkTS 方法必须在
+`methodMap_` 里，否则 JS 拿不到）。
+
+JS 包装在 `src/native/scanKit.ts`：`startScanner()` 把原生结果转成
+`{ok: true, value}` / `{ok: false, cancelled}` / `{ok: false, error}`，模块不存在
+（Android/iOS）时返回 `自绘扫码页只在鸿蒙版提供`。
+
+## 4. RN 侧
+
+`App.tsx` 的「扫一扫」入口直接调用 `startScanner()`（不再有 RN 的
+`ScanScreen`）：
+
+- 结果是 http(s) URL → `push({kind: 'web', url})`，`WebPageScreen` 用
+  `isNavigableUrl` 校验后以 `source={{uri}}` 打开（非 http(s) 仍回退到本地演示页）；
+- 不是 URL → 列表上弹「扫码结果」对话框显示原文；
+- 失败 → 「无法扫码」对话框显示原因；
+- 取消 → 什么都不做，列表保持原样。
+
+### vision-camera 移除清单
+
+| 位置 | 处理 |
+| --- | --- |
+| `package.json` / `package-lock.json` | 删除依赖；`grep -c vision-camera package.json` = **0** |
+| `harmony/entry/oh-package.json5` | 删除 `vision_camera.har` 依赖 |
+| `harmony/entry/src/main/cpp/CMakeLists.txt` | 删除 `add_subdirectory(.../react-native-vision-camera)` 与 `rnoh_vision_camera` 链接 |
+| `harmony/entry/src/main/cpp/PackageProvider.cpp` | 删除 `VisionCameraPackage` 注册 |
+| `harmony/entry/src/main/ets/PackageProvider.ets` | 删除 `VisionCameraModulePackage` |
+| `harmony/entry/src/main/ets/pages/Index.ets` | 删除 `VisionCameraView` 的 `arkTsComponentNames` 与 custom builder 分支 |
+| `harmony/entry/src/main/module.json5` | 删除 `GYROSCOPE`（随预览一起移除）；`ACCELEROMETER` 保留给 RNOH DevMenu 的摇一摇（注释已改正，不是 vision-camera 用的） |
+| `src/types/react-native-ohos-vision-camera.d.ts` | 删除 |
+| `src/native/cameraModule.ts` | 删除 |
+| `__mocks__/react-native-vision-camera-harmony.js` | 删除 |
+| `jest.config.js` | 删除 vision-camera 的 `moduleNameMapper` |
+| `src/screens/ScanScreen.tsx` / `__tests__/scanScreen.test.tsx` | 删除，由 ArkTS 页 + `__tests__/scanFlow.test.tsx` 取代 |
+
+验收命令：
+
+```console
+$ ls harmony/entry/src/main/ets/pages/ScanPage.ets
+harmony/entry/src/main/ets/pages/ScanPage.ets
+$ grep -c vision-camera package.json
+0
+$ grep -n 'ScanType.QR_CODE' harmony/entry/src/main/ets/pages/ScanPage.ets
+          scanTypes: [scanCore.ScanType.QR_CODE],
+```
+
+## 5. 真机验证
+
+设备：`FMR0224125000567`（Mate 60 Pro / ALN-AL00，1260×2720），签名 debug HAP。
+构建：`hvigorw ... assembleHap` **BUILD SUCCESSFUL**，HAP 从 136 MB 降到 69 MB
+（移除 vision-camera 的 `.so`）。证据在 `docs/evidence/scan/`。
+
+### 5.1 预览（基线 vs 本单）
+
+| 项 | 改动前（`b113693`，vision-camera） | 改动后 |
+| --- | --- | --- |
+| 页面 | RN `ScanScreen.tsx`（相机塞在 RN 视图里） | 独立 ArkTS `pages/ScanPage.ets` |
+| 预览 | 页面打开后是活的画面（两帧均值差小，场景静止） | 同左；见下 |
+| 实时识码 | `codeTypes: ['qr']` 被映射成 UPC-A，真机未解出过二维码 | 见 5.3：真实二维码解出 39 字符 |
+| 证据 | `before-vision-camera-scan.jpg`、`before-vision-camera-scan-frame2.jpg`、`before-permission-dialog.png` | `after-scan-preview.jpg`、`after-scan-preview-frame2.jpg`、`after-permission-*.png` |
+
+改动后的预览不是黑屏：对 1260×2720 截图去掉顶部栏后取两帧（间隔 2 s），
+预览区均值 `[103.6, 119.3, 135.5]`、标准差 `[73.5, 61.1, 44.0]`，两帧
+`mean abs diff = [2.02, 1.78, 2.07]`、2.56% 像素变化 >8 —— 场景本身静止，
+变化来自传感器噪声/曝光，说明是活的相机流。更直接的证据是
+`ScanFrameworkCustomScan` 持续收到 `surface buffer 2336×1080` 并在
+`checkDecode` 上跑帧。
+
+### 5.2 构建 / 页面 / 取消 / 权限
 
 | 步骤 | 结果 | 证据 |
 | --- | --- | --- |
-| `vision-camera` 接进工程 | `assembleHap` 通过，HAP 内含 `librnoh_vision_camera.so` | 构建日志 |
-| 装机 → 相机预览 | 页面显示实时预览；预览区域（y 400–2200）均值亮度 10.3、标准差 25.8、近黑 13.1%；相隔 2 秒两帧有 29.3% 采样像素变化（均值绝对差 5.13）→ 活的画面，不是黑屏/白块 | `after-scan-preview.png` |
-| 相机权限 | 首次进页面弹系统相机授权，允许后预览出现 | 见上 |
-| 系统扫码兜底 | 点「用系统扫码」拉起 Scan Kit 系统扫码页；在其「图库」里选上面的截图，回到应用显示 `系统扫码 · qr` + `https://example.com` | `after-system-scan-ui.png` |
-| 相册选图 → 原生解码 | 先在二维码页截屏（系统截图进相册），再进扫码页选它：显示 `相册识别 · qr · 1260×2000 · ScanKit 90ms` + `https://example.com` | `after-album-result.png`、`album-input-qr.jpg` |
-| 列表入口 | 列表新增「扫码」入口 | `after-list.png`（改动前：`before-list.png`） |
-| 页内实时识码 | 见下面的「未验证」 | — |
+| `assembleHap` | 成功；无 ArkTS 编译错误 | 构建日志 |
+| 点「扫一扫」 | **自绘 ArkTS 页打开**（不是系统扫码页）；标题「扫一扫」、取景框、「取消」、提示都在状态栏下方 | `after-scan-preview.jpg` |
+| 相机权限弹窗 | 系统弹窗「允许“KMP RN Demo”访问你的相机？」理由「使用相机扫描二维码」 | `after-permission-dialog.png` |
+| 拒绝权限 | 页面显示「需要相机权限」+ 说明 + 「去设置」/「返回」 | `after-permission-denied.png` |
+| 去设置 | 打开系统设置的本应用详情页 | `after-permission-settings.png` |
+| 从设置返回（仍未授权） | 仍是拒绝页（`checkAccessTokenSync` 复查） | 日志 |
+| 点「取消」 | `hilog: ScanPage: scan finished: {"status":"cancelled"}`，回到商品列表 | 日志 + `after-list.png` |
+| 切后台再回来 | `page hidden, stopping…` → `customScan stopped/released` → `page shown again, restarting…` → `customScan started` | 日志 |
 
-### 没验到的 / 限制
+### 5.3 实时识码
 
-- **页内实时识码（`codeScanner`）没有在真机上成功解出过**。预览确认是活画面，
-  但自动化环境里相机看不到二维码；真实体验反馈也是「不太好使」。因此：
-  页内扫描只作为「快速尝试」，不写成「相机扫码已实现」；系统扫码和相册解码
-  是能确认解出内容的路径。
-- 相册解码默认走原生 ScanKit（毫秒级）；`jsqr` 兜底仍可能慢（同一张截图 ~8s，
-  因为纯 JS JPEG 解码占大头），只在原生解码不可用时才会走到。
-- 页面引导写死为中文，且 `customScan` 的对焦/分辨率不可从 JS 调整（适配层没有
-  暴露），识别率受环境反光影响。
-- 相册解码依赖 image-picker 的鸿蒙 har，Android / iOS 上扫码页显示不可用说明。
-- 系统扫码页是系统 UIExtension；自动化点击需要先按坐标点开「图库」，再走系统
-  的「完成」。
+自动化会话中相机对着环境里屏幕上的一个真实二维码，`customScan` 解出 **39 字符**：
+
+```
+ScanPage: scanned 39 chars
+ScanPage: scan finished: {"status":"ok","value":"<https URL，内部页面，此处不贴出>"}
+```
+
+随后 RN 侧 `WebPageScreen` 确实挂载了该 URL（chromium 日志
+`NWebHandlerDelegate::OnPageVisible`）。值是一个 http(s) URL，所以走的是「打开 H5 页」
+分支；如果是普通文本则走「扫码结果」对话框。
+
+### 5.4 没验到的 / 限制
+
+- 识码这一次是自动化会话里相机恰好对着一个真实二维码；**没有用第二台设备做可重复的
+  扫码回归**（相机朝向不可远程控制）。用户真机验收第 3 条时请再扫一次。
+- 系统扫码页（`startSystemScanner()`）保留但不在主路径，本单没有重测它。
+- 相册解码仍走上一单的 `detectBarcode.decode`（约 90 ms），本单未改动、未重测。
+- 顶部栏避让用的是系统 status bar avoid area；折叠屏/平板等不同形态没有验证。

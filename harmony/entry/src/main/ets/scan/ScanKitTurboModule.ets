@@ -1,7 +1,8 @@
 import { TurboModule } from '@rnoh/react-native-openharmony/ts';
 import type { TurboModuleContext } from '@rnoh/react-native-openharmony/ts';
 import { detectBarcode, scanBarcode, scanCore } from '@kit.ScanKit';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { BusinessError, emitter } from '@kit.BasicServicesKit';
+import { ScanPageResult, SCAN_RESULT_EVENT_ID } from './ScanEvents';
 
 /** Decoded text of an image; `values` is empty when no code was found. */
 interface ImageScanResult {
@@ -17,18 +18,21 @@ interface SystemScanResult {
 }
 
 /**
- * Scan Kit bridge for the two cases the native preview scanner cannot cover:
+ * Scan Kit bridge for the app's three scan paths:
  *
- * - `decodeImage(uri)`: decode a still image (album pick) with Scan Kit's
- *   native image decoder instead of jsqr. Milliseconds instead of seconds for
- *   a phone screenshot, and it understands more formats than the pure-JS
- *   decoders.
- * - `startSystemScan()`: open Scan Kit's default (system) scanning UI, which
- *   has the platform's best recognition rate, and return its result. Used as
- *   the "always works" fallback next to the in-page preview scanner.
+ * - `startScanner()`: the main path. Pushes the self-drawn ArkTS `ScanPage`
+ *   (Scan Kit's `customScan` on an XComponent surface) and resolves with
+ *   `{status: 'ok' | 'cancelled' | 'failed', value?, reason?}` once the page
+ *   reports back through the emitter event in `ScanEvents.ets`.
+ * - `startSystemScanner()`: Scan Kit's default (system) scanning UI, kept as an
+ *   explicit fallback and never used by the main flow.
+ * - `decodeImage(uri)`: Scan Kit's native still-image decoder for the album
+ *   path used by the platform-capability page.
  */
 export class ScanKitTurboModule extends TurboModule {
   private context: TurboModuleContext;
+  /** Guards against pushing a second ScanPage on top of the first. */
+  private scanning: boolean = false;
 
   constructor(ctx: TurboModuleContext) {
     super(ctx);
@@ -60,7 +64,61 @@ export class ScanKitTurboModule extends TurboModule {
       });
   }
 
-  startSystemScan(): Promise<SystemScanResult> {
+  /**
+   * Opens the self-drawn scan page and waits for its result.
+   *
+   * The listener is registered before the page is pushed, so a code found on
+   * the page's first frames cannot race ahead of it. The page emits exactly
+   * once; `emitter.off` keeps the module from leaking listeners across scans.
+   */
+  startScanner(): Promise<ScanPageResult> {
+    if (this.scanning) {
+      const busy: ScanPageResult = { status: 'failed', reason: '扫码页已经打开' };
+      return Promise.resolve(busy);
+    }
+    this.scanning = true;
+    return new Promise<ScanPageResult>((resolve: (result: ScanPageResult) => void) => {
+      const handler = (event: emitter.EventData): void => {
+        emitter.off(SCAN_RESULT_EVENT_ID, handler);
+        this.scanning = false;
+        const payload = event.data;
+        const raw: string = payload === undefined ? '' : payload.scanResult;
+        if (typeof raw !== 'string' || raw.length === 0) {
+          resolve({ status: 'failed', reason: '扫码页没有返回结果' });
+          return;
+        }
+        try {
+          const result = JSON.parse(raw) as ScanPageResult;
+          resolve({
+            status: result.status,
+            value: result.value,
+            reason: result.reason,
+          });
+        } catch (error) {
+          resolve({ status: 'failed', reason: '扫码结果无法解析' });
+        }
+      };
+
+      emitter.on({ eventId: SCAN_RESULT_EVENT_ID }, handler);
+      const uiContext = this.context.getUIContext();
+      if (uiContext === null) {
+        emitter.off(SCAN_RESULT_EVENT_ID, handler);
+        this.scanning = false;
+        resolve({ status: 'failed', reason: '没有可用的 UI 上下文' });
+        return;
+      }
+      uiContext.getRouter().pushUrl({ url: 'pages/ScanPage' }).catch((error: BusinessError) => {
+        emitter.off(SCAN_RESULT_EVENT_ID, handler);
+        this.scanning = false;
+        resolve({
+          status: 'failed',
+          reason: `无法打开扫码页：${error.code} ${error.message}`,
+        });
+      });
+    });
+  }
+
+  startSystemScanner(): Promise<SystemScanResult> {
     const options: scanBarcode.ScanOptions = {
       scanTypes: [scanCore.ScanType.QR_CODE],
       enableMultiMode: false,

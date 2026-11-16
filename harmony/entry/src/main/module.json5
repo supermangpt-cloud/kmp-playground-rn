@@ -15,9 +15,10 @@
         "name": "ohos.permission.INTERNET"
       },
       {
-        // The scan page previews the back camera through Camera Kit. CAMERA is
-        // a user_grant permission, so the app asks at runtime and the reason
-        // string is shown in the system dialog.
+        // The self-drawn scan page (`pages/ScanPage`) previews the back camera
+        // through Scan Kit's customScan. CAMERA is a user_grant permission, so
+        // the page asks at runtime and the reason string is shown in the
+        // system dialog.
         "name": "ohos.permission.CAMERA",
         "reason": "$string:camera_reason",
         "usedScene": {
@@ -28,12 +29,11 @@
         }
       },
       {
-        // react-native-vision-camera's HarmonyOS view subscribes to the
-        // gravity sensor to keep the preview upright.
+        // RNOH's dev menu registers a shake detector (debug builds) on the
+        // accelerometer; without this normal-level permission it logs an error
+        // and shake-to-open-dev-menu stays disabled. It is unrelated to the
+        // scan page.
         "name": "ohos.permission.ACCELEROMETER"
-      },
-      {
-        "name": "ohos.permission.GYROSCOPE"
       }
     ],
     "abilities": [

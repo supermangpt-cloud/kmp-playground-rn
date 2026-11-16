@@ -1,13 +1,15 @@
 /**
- * The H5 demo page: a local HTML document rendered by the HarmonyOS/Android/
- * iOS WebView adaptation of `react-native-webview`.
+ * The H5 page: a local demo document, or a scanned web URL, rendered by the
+ * HarmonyOS/Android/iOS WebView adaptation of `react-native-webview`.
  *
- * The page never leaves the app: the HTML comes from `src/web/demo.html` via
- * `source={{html}}`, its button reports back through `postMessage`/`onMessage`,
- * and every navigation request is checked with `isNavigableUrl` first. A
- * `tuitui://…` link (the KMP build's real-world `ERR_UNKNOWN_URL_SCHEME` case)
- * is rejected and reported in the page chrome instead of being handed to the
- * native view.
+ * Without a `url` prop the page never leaves the app: the HTML comes from
+ * `src/web/demo.html` via `source={{html}}`, its button reports back through
+ * `postMessage`/`onMessage`, and every navigation request is checked with
+ * `isNavigableUrl` first. A `tuitui://…` link (the KMP build's real-world
+ * `ERR_UNKNOWN_URL_SCHEME` case) is rejected and reported in the page chrome
+ * instead of being handed to the native view. With a `url` prop (a scanned
+ * http(s) URL, already admitted by `isWebUrl` in App.tsx) the same chrome shows
+ * that page inside the app.
  */
 import React, {useCallback, useRef, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
@@ -19,6 +21,8 @@ import {demoHtmlWithInitialCount} from '../web/demoHtml';
 
 type Props = {
   onBack: () => void;
+  /** A scanned http(s) URL to open; omitted for the local demo document. */
+  url?: string;
 };
 
 type LoadRequest = {
@@ -61,7 +65,11 @@ function parseWebMessage(raw: string): {count: number; at: string} | null {
   return null;
 }
 
-export default function WebPageScreen({onBack}: Props): JSX.Element {
+export default function WebPageScreen({onBack, url}: Props): JSX.Element {
+  // Only a URL `isNavigableUrl` admits may reach the native view. Everything
+  // else (including a missing prop) falls back to the local demo document.
+  const scannedUrl =
+    url !== undefined && isNavigableUrl(url.trim()) ? url.trim() : undefined;
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const [blockedUrl, setBlockedUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -131,16 +139,22 @@ export default function WebPageScreen({onBack}: Props): JSX.Element {
           <Text style={styles.backText}>‹ 返回</Text>
         </Pressable>
         <View style={styles.headerText}>
-          <Text style={styles.heading}>H5 演示</Text>
-          <Text style={styles.address} numberOfLines={1}>
-            src/web/demo.html · 本地 HTML
+          <Text style={styles.heading}>
+            {scannedUrl === undefined ? 'H5 演示' : 'H5 页面'}
+          </Text>
+          <Text style={styles.address} numberOfLines={1} testID="web-address">
+            {scannedUrl ?? 'src/web/demo.html · 本地 HTML'}
           </Text>
         </View>
       </View>
 
       <WebView
         key={webViewInstance}
-        source={{html: demoHtmlWithInitialCount(restoredCount)}}
+        source={
+          scannedUrl === undefined
+            ? {html: demoHtmlWithInitialCount(restoredCount)}
+            : {uri: scannedUrl}
+        }
         originWhitelist={['*']}
         javaScriptEnabled
         domStorageEnabled

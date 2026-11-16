@@ -20,9 +20,9 @@ namespace rnoh {
  * can find it. Core modules such as `KeyboardObserver` are registered the same
  * way in `RNOHCoreTurboModuleFactoryDelegate`.
  *
- * `vision-camera` and the other adapted libraries ship their own C++ packages
- * and delegates, so this one stays as the place for app modules that only have
- * an ArkTS implementation.
+ * The adapted libraries ship their own C++ packages and delegates, so this one
+ * stays as the place for app modules that only have an ArkTS implementation
+ * (the Scan Kit bridge and image-picker's method map).
  */
 class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
  public:
