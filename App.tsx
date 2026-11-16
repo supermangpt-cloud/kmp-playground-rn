@@ -15,6 +15,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {BackHandler, SafeAreaView, StatusBar, StyleSheet} from 'react-native';
 
 import {findProduct} from './src/data/products';
+import CapabilitiesScreen from './src/screens/CapabilitiesScreen';
 import CartScreen from './src/screens/CartScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
@@ -30,7 +31,8 @@ export type Screen =
   | {kind: 'cart'}
   | {kind: 'qr'}
   | {kind: 'scan'}
-  | {kind: 'web'};
+  | {kind: 'web'}
+  | {kind: 'capabilities'};
 
 const INITIAL_SCREEN: Screen = {kind: 'list'};
 
@@ -81,6 +83,7 @@ function App(): JSX.Element {
       onOpenQr={() => push({kind: 'qr'})}
       onOpenScan={() => push({kind: 'scan'})}
       onOpenWebPage={() => push({kind: 'web'})}
+      onOpenCapabilities={() => push({kind: 'capabilities'})}
     />
   );
 
@@ -114,6 +117,8 @@ function App(): JSX.Element {
     content = <ScanScreen onBack={back} />;
   } else if (screen.kind === 'web') {
     content = <WebPageScreen onBack={back} />;
+  } else if (screen.kind === 'capabilities') {
+    content = <CapabilitiesScreen onBack={back} />;
   } else {
     content = listScreen;
   }

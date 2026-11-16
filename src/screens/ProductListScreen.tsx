@@ -27,8 +27,7 @@ type Props = {
   onOpenQr: () => void;
   onOpenScan: () => void;
   onOpenWebPage: () => void;
-  /** Opens the platform-capability list. Wired when that screen lands. */
-  onOpenCapabilities?: () => void;
+  onOpenCapabilities: () => void;
 };
 
 function ProductCard({
