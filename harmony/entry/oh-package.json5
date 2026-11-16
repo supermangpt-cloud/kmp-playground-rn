@@ -12,6 +12,11 @@
     "@rnoh/react-native-openharmony": "0.72.140",
     // HarmonyOS adaptation of react-native-webview. It is not autolinked, so
     // the prebuilt har from node_modules is linked manually here.
-    "@react-native-oh-tpl/react-native-webview": "file:../../node_modules/@react-native-oh-tpl/react-native-webview/harmony/rn_webview.har"
+    "@react-native-oh-tpl/react-native-webview": "file:../../node_modules/@react-native-oh-tpl/react-native-webview/harmony/rn_webview.har",
+    // HarmonyOS adaptation of react-native-svg, the renderer behind
+    // react-native-qrcode-svg. Same manual link: its har carries the C++
+    // CAPI component implementations and the C++ turbo modules, so only the
+    // CMake/PackageProvider.cpp side is registered.
+    "@react-native-oh-tpl/react-native-svg": "file:../../node_modules/@react-native-oh-tpl/react-native-svg/harmony/svg.har"
   }
 }

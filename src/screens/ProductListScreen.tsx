@@ -17,6 +17,7 @@ type Props = {
   onOpenProduct: (productId: string) => void;
   onOpenCart: () => void;
   onAddToCart: (productId: string) => void;
+  onOpenQr: () => void;
   onOpenWebPage: () => void;
 };
 
@@ -61,6 +62,7 @@ export default function ProductListScreen({
   onOpenProduct,
   onOpenCart,
   onAddToCart,
+  onOpenQr,
   onOpenWebPage,
 }: Props): JSX.Element {
   return (
@@ -82,17 +84,31 @@ export default function ProductListScreen({
       <Text style={styles.subheading}>KMP RN Demo · 共 6 件商品</Text>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel="打开二维码页面"
+        onPress={onOpenQr}
+        style={({pressed}) => [styles.entry, pressed && styles.pressed]}
+        testID="qr-entry">
+        <View style={styles.entryText}>
+          <Text style={styles.entryTitle}>二维码</Text>
+          <Text style={styles.entryHint}>
+            svg 实时生成 · L/M/Q/H 纠错级别 · 版本信息
+          </Text>
+        </View>
+        <Text style={styles.entryChevron}>›</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
         accessibilityLabel="打开 H5 演示页"
         onPress={onOpenWebPage}
-        style={({pressed}) => [styles.h5Entry, pressed && styles.pressed]}
+        style={({pressed}) => [styles.entry, pressed && styles.pressed]}
         testID="h5-entry">
-        <View style={styles.h5EntryText}>
-          <Text style={styles.h5EntryTitle}>H5 演示</Text>
-          <Text style={styles.h5EntryHint}>
+        <View style={styles.entryText}>
+          <Text style={styles.entryTitle}>H5 演示</Text>
+          <Text style={styles.entryHint}>
             本地 HTML · postMessage 回传 · 拦截非法跳转
           </Text>
         </View>
-        <Text style={styles.h5EntryChevron}>›</Text>
+        <Text style={styles.entryChevron}>›</Text>
       </Pressable>
       {PRODUCTS.map(product => (
         <ProductCard
@@ -142,29 +158,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  h5Entry: {
+  entry: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: colors.accentSoft,
   },
-  h5EntryText: {
+  entryText: {
     flex: 1,
   },
-  h5EntryTitle: {
+  entryTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.accent,
   },
-  h5EntryHint: {
+  entryHint: {
     marginTop: 3,
     fontSize: 12,
     color: colors.textSecondary,
   },
-  h5EntryChevron: {
+  entryChevron: {
     marginLeft: 12,
     fontSize: 24,
     color: colors.accent,

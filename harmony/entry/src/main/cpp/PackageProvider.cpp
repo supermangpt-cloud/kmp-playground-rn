@@ -6,13 +6,15 @@
  */
 
 #include "RNOH/PackageProvider.h"
+#include "SVGPackage.h"
 #include "WebViewPackage.h"
 
 using namespace rnoh;
 
 std::vector<std::shared_ptr<Package>> PackageProvider::getPackages(
     Package::Context ctx) {
-  // The RNOH core package is added by the framework itself; the only native
-  // third-party package in this app is the HarmonyOS WebView adaptation.
-  return {std::make_shared<WebViewPackage>(ctx)};
+  // The RNOH core package is added by the framework itself; the native
+  // third-party packages in this app are linked by hand.
+  return {std::make_shared<WebViewPackage>(ctx),
+          std::make_shared<SVGPackage>(ctx)};
 }

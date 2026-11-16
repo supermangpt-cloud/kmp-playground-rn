@@ -9,5 +9,9 @@ module.exports = {
   moduleNameMapper: {
     '^@react-native-oh-tpl/react-native-webview$':
       '<rootDir>/__mocks__/react-native-webview-harmony.js',
+    // react-native-qrcode-svg renders react-native-svg native elements, which
+    // this Jest preset cannot mount. The encoder is tested directly instead.
+    '^@react-native-oh-tpl/react-native-qrcode-svg$':
+      '<rootDir>/__mocks__/react-native-qrcode-svg.js',
   },
 };
