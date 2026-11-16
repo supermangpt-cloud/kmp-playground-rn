@@ -10,7 +10,7 @@ export const colors = {
   textPrimary: '#212121',
   textSecondary: '#757575',
   textHint: '#9E9E9E',
-  accent: '#2563EB',
+  accent: '#EF6C00',
   accentSoft: '#EEF2FF',
   divider: '#EEEEEE',
 } as const;

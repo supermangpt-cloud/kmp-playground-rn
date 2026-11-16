@@ -4,6 +4,11 @@
  * Tapping a card opens the detail screen; the card's own 「加入购物车」 button
  * adds one unit. The header shows the total unit count (`购物车 3`), which is
  * derived by the cart reducer, so it changes on the same render as the add.
+ *
+ * The header layout follows the KMP build's `ui/ProductListScreen.kt`: a title
+ * row, a one-line subtitle, three small outlined entries (扫一扫 / 二维码 /
+ * 平台能力) and the H5 result panel. The three entries used to be large cards
+ * here; the KMP screen keeps them as 12sp chips on one right-aligned row.
  */
 import React from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
@@ -20,6 +25,8 @@ type Props = {
   onOpenQr: () => void;
   onOpenScan: () => void;
   onOpenWebPage: () => void;
+  /** Opens the platform-capability list. Wired when that screen lands. */
+  onOpenCapabilities?: () => void;
 };
 
 function ProductCard({
@@ -58,6 +65,52 @@ function ProductCard({
   );
 }
 
+/** One small outlined entry in the header, matching KMP's `EntryChip`. */
+function EntryChip({
+  label,
+  onPress,
+  testID,
+}: {
+  label: string;
+  onPress?: () => void;
+  testID: string;
+}): JSX.Element {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({pressed}) => [styles.chip, pressed && styles.pressed]}
+      testID={testID}>
+      <Text style={styles.chipText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * The H5 panel: the last page's result on the left and the open button on the
+ * right. The result lines are filled in by a later step; until then the status
+ * reads like the KMP build's initial "还没有打开过 H5 页面" state.
+ */
+function H5Panel({onOpen}: {onOpen: () => void}): JSX.Element {
+  return (
+    <View style={styles.h5Panel}>
+      <View style={styles.h5Text}>
+        <Text style={styles.h5Title}>H5 回传</Text>
+        <Text style={styles.h5Status}>还没有打开过 H5 页面</Text>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="打开 H5 演示页"
+        onPress={onOpen}
+        style={({pressed}) => [styles.h5Button, pressed && styles.pressed]}
+        testID="h5-entry">
+        <Text style={styles.h5ButtonText}>H5 演示</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function ProductListScreen({
   cart,
   onOpenProduct,
@@ -66,66 +119,39 @@ export default function ProductListScreen({
   onOpenQr,
   onOpenScan,
   onOpenWebPage,
+  onOpenCapabilities,
 }: Props): JSX.Element {
   return (
     <ScrollView
       style={styles.scrollView}
       contentContainerStyle={styles.content}
       testID="product-list">
-      <View style={styles.headerRow}>
-        <Text style={styles.heading}>商品列表</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`购物车，共 ${cart.count} 件`}
-          onPress={onOpenCart}
-          style={({pressed}) => [styles.cartBadge, pressed && styles.pressed]}
-          testID="cart-badge">
-          <Text style={styles.cartBadgeText}>购物车 {cart.count}</Text>
-        </Pressable>
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <Text style={styles.heading}>商品列表</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`购物车，共 ${cart.count} 件`}
+            onPress={onOpenCart}
+            style={({pressed}) => [styles.cartBadge, pressed && styles.pressed]}
+            testID="cart-badge">
+            <Text style={styles.cartBadgeText}>购物车 {cart.count}</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.subheading}>
+          点商品查看详情，点「加入购物车」更新下方合计
+        </Text>
+        <View style={styles.chipRow}>
+          <EntryChip label="扫一扫" onPress={onOpenScan} testID="scan-entry" />
+          <EntryChip label="二维码" onPress={onOpenQr} testID="qr-entry" />
+          <EntryChip
+            label="平台能力"
+            onPress={onOpenCapabilities}
+            testID="capabilities-entry"
+          />
+        </View>
       </View>
-      <Text style={styles.subheading}>KMP RN Demo · 共 6 件商品</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="打开二维码页面"
-        onPress={onOpenQr}
-        style={({pressed}) => [styles.entry, pressed && styles.pressed]}
-        testID="qr-entry">
-        <View style={styles.entryText}>
-          <Text style={styles.entryTitle}>二维码</Text>
-          <Text style={styles.entryHint}>
-            svg 实时生成 · L/M/Q/H 纠错级别 · 版本信息
-          </Text>
-        </View>
-        <Text style={styles.entryChevron}>›</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="打开扫码页面"
-        onPress={onOpenScan}
-        style={({pressed}) => [styles.entry, pressed && styles.pressed]}
-        testID="scan-entry">
-        <View style={styles.entryText}>
-          <Text style={styles.entryTitle}>扫码</Text>
-          <Text style={styles.entryHint}>
-            相机预览 · 实时识码 · 从相册选图解析
-          </Text>
-        </View>
-        <Text style={styles.entryChevron}>›</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="打开 H5 演示页"
-        onPress={onOpenWebPage}
-        style={({pressed}) => [styles.entry, pressed && styles.pressed]}
-        testID="h5-entry">
-        <View style={styles.entryText}>
-          <Text style={styles.entryTitle}>H5 演示</Text>
-          <Text style={styles.entryHint}>
-            本地 HTML · postMessage 回传 · 拦截非法跳转
-          </Text>
-        </View>
-        <Text style={styles.entryChevron}>›</Text>
-      </Pressable>
+      <H5Panel onOpen={onOpenWebPage} />
       {PRODUCTS.map(product => (
         <ProductCard
           key={product.id}
@@ -147,17 +173,23 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 24,
   },
+  header: {
+    paddingHorizontal: 4,
+    paddingBottom: 8,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   heading: {
-    fontSize: 28,
+    flex: 1,
+    fontSize: 26,
     fontWeight: '700',
     color: colors.textPrimary,
   },
   cartBadge: {
+    marginLeft: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
@@ -165,41 +197,81 @@ const styles = StyleSheet.create({
   },
   cartBadgeText: {
     fontSize: 13,
+    letterSpacing: 0.3,
     fontWeight: '700',
+    lineHeight: 24,
     color: colors.surface,
   },
   subheading: {
+    alignSelf: 'flex-start',
     marginTop: 4,
-    marginBottom: 16,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 24,
     color: colors.textSecondary,
   },
-  entry: {
+  chipRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  chip: {
+    marginLeft: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 24,
+    color: colors.accent,
+  },
+  h5Panel: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: colors.accentSoft,
+    marginVertical: 4,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
   },
-  entryText: {
+  h5Text: {
     flex: 1,
   },
-  entryTitle: {
-    fontSize: 16,
+  h5Title: {
+    alignSelf: 'flex-start',
+    fontSize: 15,
     fontWeight: '700',
-    color: colors.accent,
+    lineHeight: 24,
+    color: colors.textPrimary,
   },
-  entryHint: {
-    marginTop: 3,
+  h5Status: {
+    alignSelf: 'flex-start',
     fontSize: 12,
-    color: colors.textSecondary,
+    lineHeight: 24,
+    color: colors.textHint,
   },
-  entryChevron: {
-    marginLeft: 12,
-    fontSize: 24,
-    color: colors.accent,
+  h5Button: {
+    marginLeft: 8,
+    minHeight: 40,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.accent,
+  },
+  h5ButtonText: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: '500',
+    color: colors.surface,
   },
   card: {
     marginBottom: 12,
