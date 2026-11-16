@@ -13,10 +13,14 @@
     "dev": "react-native bundle-harmony --dev"
   },
   "dependencies": {
+    "@react-native-oh-tpl/react-native-qrcode-svg": "6.2.0-0.0.3",
+    "@react-native-oh-tpl/react-native-svg": "15.0.1-8",
     "@react-native-oh-tpl/react-native-webview": "13.10.3",
     "@react-native-oh/react-native-harmony": "^0.72.140",
+    "qrcode": "1.5.4",
     "react": "18.2.0",
     "react-native": "0.72.5",
+    "react-native-svg": "15.0.0",
     "react-native-webview": "13.10.2"
   },
   "devDependencies": {

@@ -3,5 +3,12 @@
   "name": "kmp-playground-rn-harmony",
   "version": "1.0.0",
   "description": "HarmonyOS shell for the KMP RN demo.",
-  "dependencies": {}
+  "dependencies": {},
+  // The react-native-svg 13.14.0-0.4.8 har asks for a `file:../react_native_openharmony`
+  // dependency that does not exist in its release, and it would otherwise let
+  // ohpm resolve the RNOH core from that har's range. Keep the app's existing
+  // RNOH 0.72.140 for every package, as the CI baseline does.
+  "overrides": {
+    "@rnoh/react-native-openharmony": "0.72.140"
+  }
 }

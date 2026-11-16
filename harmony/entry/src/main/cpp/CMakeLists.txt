@@ -4,8 +4,8 @@
 # LICENSE-MIT file in the root directory of this source tree.
 #
 # Follows the standalone 0.72 integration guide: RNOH sources are compiled from
-# entry/oh_modules (ohpm install runs in entry/), and this app has no native
-# third-party package, so there is no autolinking or codegen step.
+# entry/oh_modules (ohpm install runs in entry/). Third-party packages are not
+# autolinked, so each one is added by hand below.
 
 project(rnapp)
 cmake_minimum_required(VERSION 3.4.1)
@@ -29,6 +29,13 @@ add_subdirectory(
     "${OH_MODULE_DIR}/@react-native-oh-tpl/react-native-webview/src/main/cpp"
     ./webview)
 
+# react-native-svg's HarmonyOS adaptation registers its CAPI components from
+# C++, so only the CMake side has to be linked; there is no ArkTS component to
+# register in pages/Index.ets.
+add_subdirectory(
+    "${OH_MODULE_DIR}/@react-native-oh-tpl/react-native-svg/src/main/cpp"
+    ./svg)
+
 add_library(rnoh_app SHARED
     "./PackageProvider.cpp"
     "${RNOH_CPP_DIR}/RNOHAppNapiBridge.cpp"
@@ -36,3 +43,4 @@ add_library(rnoh_app SHARED
 
 target_link_libraries(rnoh_app PUBLIC rnoh)
 target_link_libraries(rnoh_app PUBLIC rnoh_webview)
+target_link_libraries(rnoh_app PUBLIC rnoh_svg)
