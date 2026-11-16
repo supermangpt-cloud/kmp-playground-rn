@@ -113,10 +113,10 @@ export default function CartScreen({
         </ScrollView>
       )}
       <View style={styles.totalBar} testID="cart-total-bar">
-        <Text style={styles.totalLabel}>合计</Text>
+        <Text style={styles.totalLabel}>应付</Text>
         <Text style={styles.totalCount}>共 {cart.count} 件</Text>
         <Text style={styles.totalAmount} testID="cart-total">
-          {formatPrice(cart.totalYuan)}
+          {formatPrice(cart.payableYuan)}
         </Text>
       </View>
     </View>

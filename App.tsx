@@ -75,6 +75,9 @@ function App(): JSX.Element {
       onOpenProduct={productId => push({kind: 'detail', productId})}
       onOpenCart={() => push({kind: 'cart'})}
       onAddToCart={cart.add}
+      onIncrement={cart.increment}
+      onDecrement={cart.decrement}
+      onRemove={cart.remove}
       onOpenQr={() => push({kind: 'qr'})}
       onOpenScan={() => push({kind: 'scan'})}
       onOpenWebPage={() => push({kind: 'web'})}
@@ -117,7 +120,7 @@ function App(): JSX.Element {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F5F5" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       {content}
     </SafeAreaView>
   );
@@ -126,7 +129,10 @@ function App(): JSX.Element {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    // KMP paints both system bars white and only the page surface #F5F5F5;
+    // the screens set their own background, so this colour only shows in the
+    // status/navigation bar insets.
+    backgroundColor: '#FFFFFF',
   },
 });
 

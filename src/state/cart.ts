@@ -3,14 +3,16 @@
  * (`shared/src/commonMain/kotlin/com/example/kmp/Cart.kt`, `CartStore`).
  *
  * The state is immutable and [cartReducer] is a pure function of
- * `(state, action)`. [count] and [totalYuan] are derived values recomputed on
- * every transition, so the UI never keeps them in sync by hand.
+ * `(state, action)`. [count], [totalYuan], [discountYuan] and [payableYuan] are
+ * derived values recomputed on every transition, so the UI never keeps them in
+ * sync by hand.
  *
  * The rules match the KMP build:
  * - adding a product that is already in the cart bumps its quantity by one
  *   instead of appending a second row;
  * - lowering a quantity to zero removes that row;
- * - `totalYuan` is `Σ(unit price × quantity)` and `count` is `Σ quantity`.
+ * - `totalYuan` is `Σ(unit price × quantity)` and `count` is `Σ quantity`;
+ * - an order of at least ¥300 gets ¥30 off, and `payableYuan` is the amount due.
  *
  * Only React's own `useReducer` is used; there is no store dependency.
  */
@@ -26,6 +28,12 @@ export type CartItem = {
   qty: number;
 };
 
+/** Spend at least this many yuan to get [DISCOUNT_YUAN] off (KMP rule). */
+export const DISCOUNT_THRESHOLD_YUAN = 300;
+
+/** The fixed discount applied to a qualifying order, in whole yuan. */
+export const DISCOUNT_YUAN = 30;
+
 /** Immutable cart snapshot; the derived values always match `items`. */
 export type CartState = {
   items: CartItem[];
@@ -33,7 +41,16 @@ export type CartState = {
   count: number;
   /** `Σ(unit price × quantity)`, in whole yuan. */
   totalYuan: number;
+  /** [DISCOUNT_YUAN] once [totalYuan] reaches [DISCOUNT_THRESHOLD_YUAN]. */
+  discountYuan: number;
+  /** What the customer actually pays: `totalYuan - discountYuan`, floored at 0. */
+  payableYuan: number;
 };
+
+/** The KMP discount rule as a pure function of the order total. */
+export function discountFor(totalYuan: number): number {
+  return totalYuan >= DISCOUNT_THRESHOLD_YUAN ? DISCOUNT_YUAN : 0;
+}
 
 export type CartAction =
   | {type: 'add'; productId: string}
@@ -108,13 +125,17 @@ function changeQuantity(
 
 /** Recompute the derived fields from the rows. */
 function fromItems(items: CartItem[]): CartState {
+  const totalYuan = items.reduce(
+    (sum, item) => sum + item.unitPriceYuan * item.qty,
+    0,
+  );
+  const discountYuan = discountFor(totalYuan);
   return {
     items,
     count: items.reduce((sum, item) => sum + item.qty, 0),
-    totalYuan: items.reduce(
-      (sum, item) => sum + item.unitPriceYuan * item.qty,
-      0,
-    ),
+    totalYuan,
+    discountYuan,
+    payableYuan: Math.max(0, totalYuan - discountYuan),
   };
 }
 
