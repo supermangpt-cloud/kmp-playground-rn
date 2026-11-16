@@ -21,6 +21,9 @@ type Props = {
   onOpenProduct: (productId: string) => void;
   onOpenCart: () => void;
   onAddToCart: (productId: string) => void;
+  onIncrement: (productId: string) => void;
+  onDecrement: (productId: string) => void;
+  onRemove: (productId: string) => void;
   onOpenQr: () => void;
   onOpenScan: () => void;
   onOpenWebPage: () => void;
@@ -116,29 +119,122 @@ function H5Panel({onOpen}: {onOpen: () => void}): JSX.Element {
 }
 
 /**
- * The fixed bottom summary, matching KMP's `CartPanel` (without its per-item
- * rows): label, count, payable and amount, plus the empty-cart hint. The cart
- * page itself keeps the editable rows.
+ * The fixed bottom cart panel, matching KMP's `CartPanel`: the summary row, the
+ * empty hint, or — once something is in the cart — the scrollable item rows
+ * (title/unit price, −, qty, +, 删除) and the 商品合计 / 优惠 totals row.
  */
-function CartSummary({cart}: {cart: CartState}): JSX.Element {
+function CartPanel({
+  cart,
+  onIncrement,
+  onDecrement,
+  onRemove,
+}: {
+  cart: CartState;
+  onIncrement: (productId: string) => void;
+  onDecrement: (productId: string) => void;
+  onRemove: (productId: string) => void;
+}): JSX.Element {
+  const empty = cart.count === 0;
   return (
     <View style={styles.cartPanel} testID="cart-summary">
       <View style={styles.cartRow}>
         <Text style={styles.cartLabel}>购物车</Text>
         <Text style={styles.cartCount} testID="cart-summary-count">
-          {cart.count === 0 ? '还没有商品' : `${cart.count} 件商品`}
+          {empty ? '还没有商品' : `${cart.count} 件商品`}
         </Text>
         <View style={styles.cartSpacer} />
         <Text style={styles.payableLabel}>应付</Text>
         <Text style={styles.payableAmount} testID="cart-summary-payable">
-          {formatPrice(cart.totalYuan)}
+          {formatPrice(cart.payableYuan)}
         </Text>
       </View>
-      {cart.count === 0 ? (
+      {empty ? (
         <Text style={styles.cartEmpty} testID="cart-summary-empty">
           购物车还是空的，点商品的「加入购物车」
         </Text>
-      ) : null}
+      ) : (
+        <>
+          <ScrollView
+            style={styles.cartLines}
+            contentContainerStyle={styles.cartLinesContent}
+            testID="cart-lines">
+            {cart.items.map(item => (
+              <View
+                key={item.productId}
+                style={styles.cartLine}
+                testID={`cart-line-${item.productId}`}>
+                <View style={styles.cartLineInfo}>
+                  <Text numberOfLines={1} style={styles.cartLineTitle}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.cartLineUnit}>
+                    {formatPrice(item.unitPriceYuan)}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`减少 ${item.title} 的数量`}
+                  onPress={() => onDecrement(item.productId)}
+                  style={({pressed}) => [
+                    styles.stepButton,
+                    pressed && styles.pressed,
+                  ]}
+                  testID={`cart-minus-${item.productId}`}>
+                  <Text style={styles.stepButtonText}>−</Text>
+                </Pressable>
+                <Text
+                  style={styles.cartQty}
+                  testID={`cart-qty-${item.productId}`}>
+                  {item.qty}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`增加 ${item.title} 的数量`}
+                  onPress={() => onIncrement(item.productId)}
+                  style={({pressed}) => [
+                    styles.stepButton,
+                    pressed && styles.pressed,
+                  ]}
+                  testID={`cart-plus-${item.productId}`}>
+                  <Text style={styles.stepButtonText}>+</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`删除 ${item.title}`}
+                  onPress={() => onRemove(item.productId)}
+                  style={({pressed}) => [
+                    styles.removeButton,
+                    pressed && styles.pressed,
+                  ]}
+                  testID={`cart-delete-${item.productId}`}>
+                  <Text style={styles.removeButtonText}>删除</Text>
+                </Pressable>
+              </View>
+            ))}
+          </ScrollView>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>商品合计</Text>
+            <Text style={styles.totalsValue} testID="cart-total">
+              {formatPrice(cart.totalYuan)}
+            </Text>
+            <Text style={[styles.totalsLabel, styles.discountLabel]}>优惠</Text>
+            <Text
+              style={[
+                styles.totalsValue,
+                cart.discountYuan > 0 ? styles.discountText : styles.noDiscount,
+              ]}
+              testID="cart-discount">
+              {cart.discountYuan > 0
+                ? `−${formatPrice(cart.discountYuan)}`
+                : formatPrice(0)}
+            </Text>
+            <View style={styles.cartSpacer} />
+            {cart.discountYuan === 0 ? (
+              <Text style={styles.discountHint}>满 ¥300 减 ¥30</Text>
+            ) : null}
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -148,6 +244,9 @@ export default function ProductListScreen({
   onOpenProduct,
   onOpenCart,
   onAddToCart,
+  onIncrement,
+  onDecrement,
+  onRemove,
   onOpenQr,
   onOpenScan,
   onOpenWebPage,
@@ -201,7 +300,12 @@ export default function ProductListScreen({
           />
         ))}
       </ScrollView>
-      <CartSummary cart={cart} />
+      <CartPanel
+        cart={cart}
+        onIncrement={onIncrement}
+        onDecrement={onDecrement}
+        onRemove={onRemove}
+      />
     </View>
   );
 }
@@ -426,6 +530,102 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: 'center',
     color: colors.textHint,
+  },
+  cartLines: {
+    maxHeight: 132,
+    marginTop: 8,
+  },
+  cartLinesContent: {
+    gap: 2,
+  },
+  cartLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.cartLine,
+  },
+  cartLineInfo: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  cartLineTitle: {
+    alignSelf: 'flex-start',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 24,
+    color: colors.textPrimary,
+  },
+  cartLineUnit: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 24,
+    color: colors.textSecondary,
+  },
+  stepButton: {
+    width: 40,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.imagePlaceholder,
+  },
+  stepButtonText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.textPrimary,
+  },
+  cartQty: {
+    width: 30,
+    textAlign: 'center',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 24,
+    color: colors.textPrimary,
+  },
+  removeButton: {
+    minWidth: 58,
+    minHeight: 40,
+    marginLeft: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  removeButtonText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.delete,
+  },
+  totalsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  totalsLabel: {
+    fontSize: 13,
+    lineHeight: 24,
+    color: colors.textSecondary,
+  },
+  totalsValue: {
+    marginLeft: 4,
+    fontSize: 13,
+    lineHeight: 24,
+    color: colors.textBody,
+  },
+  discountLabel: {
+    marginLeft: 16,
+  },
+  discountText: {
+    color: colors.discount,
+  },
+  noDiscount: {
+    color: colors.discount,
+  },
+  discountHint: {
+    fontSize: 12,
+    lineHeight: 24,
+    color: colors.textFaint,
   },
   pressed: {
     opacity: 0.7,

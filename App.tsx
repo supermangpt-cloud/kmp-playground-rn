@@ -75,6 +75,9 @@ function App(): JSX.Element {
       onOpenProduct={productId => push({kind: 'detail', productId})}
       onOpenCart={() => push({kind: 'cart'})}
       onAddToCart={cart.add}
+      onIncrement={cart.increment}
+      onDecrement={cart.decrement}
+      onRemove={cart.remove}
       onOpenQr={() => push({kind: 'qr'})}
       onOpenScan={() => push({kind: 'scan'})}
       onOpenWebPage={() => push({kind: 'web'})}
