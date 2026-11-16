@@ -13,15 +13,20 @@
     "dev": "react-native bundle-harmony --dev"
   },
   "dependencies": {
+    "@react-native-oh-tpl/react-native-image-picker": "7.0.3-0.1.7",
     "@react-native-oh-tpl/react-native-qrcode-svg": "6.2.0-0.0.3",
     "@react-native-oh-tpl/react-native-svg": "15.0.1-8",
     "@react-native-oh-tpl/react-native-webview": "13.10.3",
     "@react-native-oh/react-native-harmony": "^0.72.140",
+    "@react-native-ohos/react-native-vision-camera": "4.0.3",
+    "jpeg-js": "0.4.4",
+    "jsqr": "1.4.0",
     "qrcode": "1.5.4",
     "react": "18.2.0",
     "react-native": "0.72.5",
     "react-native-svg": "15.0.0",
-    "react-native-webview": "13.10.2"
+    "react-native-webview": "13.10.2",
+    "upng-js": "2.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

@@ -19,6 +19,7 @@ import CartScreen from './src/screens/CartScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
 import QrCodeScreen from './src/screens/QrCodeScreen';
+import ScanScreen from './src/screens/ScanScreen';
 import WebPageScreen from './src/screens/WebPageScreen';
 import {useCart} from './src/state/cart';
 
@@ -28,6 +29,7 @@ export type Screen =
   | {kind: 'detail'; productId: string}
   | {kind: 'cart'}
   | {kind: 'qr'}
+  | {kind: 'scan'}
   | {kind: 'web'};
 
 const INITIAL_SCREEN: Screen = {kind: 'list'};
@@ -74,6 +76,7 @@ function App(): JSX.Element {
       onOpenCart={() => push({kind: 'cart'})}
       onAddToCart={cart.add}
       onOpenQr={() => push({kind: 'qr'})}
+      onOpenScan={() => push({kind: 'scan'})}
       onOpenWebPage={() => push({kind: 'web'})}
     />
   );
@@ -104,6 +107,8 @@ function App(): JSX.Element {
     );
   } else if (screen.kind === 'qr') {
     content = <QrCodeScreen onBack={back} />;
+  } else if (screen.kind === 'scan') {
+    content = <ScanScreen onBack={back} />;
   } else if (screen.kind === 'web') {
     content = <WebPageScreen onBack={back} />;
   } else {

@@ -13,6 +13,27 @@
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"
+      },
+      {
+        // The scan page previews the back camera through Camera Kit. CAMERA is
+        // a user_grant permission, so the app asks at runtime and the reason
+        // string is shown in the system dialog.
+        "name": "ohos.permission.CAMERA",
+        "reason": "$string:camera_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        // react-native-vision-camera's HarmonyOS view subscribes to the
+        // gravity sensor to keep the preview upright.
+        "name": "ohos.permission.ACCELEROMETER"
+      },
+      {
+        "name": "ohos.permission.GYROSCOPE"
       }
     ],
     "abilities": [

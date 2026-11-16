@@ -18,6 +18,7 @@ type Props = {
   onOpenCart: () => void;
   onAddToCart: (productId: string) => void;
   onOpenQr: () => void;
+  onOpenScan: () => void;
   onOpenWebPage: () => void;
 };
 
@@ -63,6 +64,7 @@ export default function ProductListScreen({
   onOpenCart,
   onAddToCart,
   onOpenQr,
+  onOpenScan,
   onOpenWebPage,
 }: Props): JSX.Element {
   return (
@@ -92,6 +94,20 @@ export default function ProductListScreen({
           <Text style={styles.entryTitle}>二维码</Text>
           <Text style={styles.entryHint}>
             svg 实时生成 · L/M/Q/H 纠错级别 · 版本信息
+          </Text>
+        </View>
+        <Text style={styles.entryChevron}>›</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="打开扫码页面"
+        onPress={onOpenScan}
+        style={({pressed}) => [styles.entry, pressed && styles.pressed]}
+        testID="scan-entry">
+        <View style={styles.entryText}>
+          <Text style={styles.entryTitle}>扫码</Text>
+          <Text style={styles.entryHint}>
+            相机预览 · 实时识码 · 从相册选图解析
           </Text>
         </View>
         <Text style={styles.entryChevron}>›</Text>
