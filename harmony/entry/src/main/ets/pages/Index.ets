@@ -12,15 +12,22 @@ import {
 } from '@rnoh/react-native-openharmony';
 import { getRNOHPackages } from '../PackageProvider';
 import { WebView, WEB_VIEW } from '@react-native-oh-tpl/react-native-webview';
+import { VisionCameraView } from '@react-native-ohos/react-native-vision-camera';
 
 /**
- * The only custom ArkTS component in this app is the WebView adaptation's
- * `RNCWebView`; register it under the component name RN sends from JS.
+ * Custom ArkTS components this app mounts from JS: the WebView adaptation's
+ * `RNCWebView` and the vision-camera adaptation's `VisionCameraView` (its
+ * preview is a Camera Kit XComponent, so it cannot be a CAPI view).
  */
 @Builder
 export function buildCustomRNComponent(ctx: ComponentBuilderContext) {
   if (ctx.componentName === WEB_VIEW) {
     WebView({
+      ctx: ctx.rnComponentContext,
+      tag: ctx.tag,
+    });
+  } else if (ctx.componentName === VisionCameraView.NAME) {
+    VisionCameraView({
       ctx: ctx.rnComponentContext,
       tag: ctx.tag,
     });
@@ -63,7 +70,7 @@ struct Index {
             enableNDKTextMeasuring: true,
             enableBackgroundExecutor: false,
             enableCAPIArchitecture: true,
-            arkTsComponentNames: []
+            arkTsComponentNames: [VisionCameraView.NAME]
           },
           initialProps: {} as Record<string, string>,
           appKey: 'KmpPlaygroundRn',

@@ -24,4 +24,13 @@ declare module 'qrcode' {
     text: string,
     options?: {errorCorrectionLevel?: QRCodeErrorCorrectionLevel},
   ): QRCodeSymbol;
+
+  export function toBuffer(
+    text: string,
+    options?: {errorCorrectionLevel?: QRCodeErrorCorrectionLevel} & {
+      type?: 'png' | 'svg';
+      width?: number;
+      margin?: number;
+    },
+  ): Promise<Uint8Array>;
 }

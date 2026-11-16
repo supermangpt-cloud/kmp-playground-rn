@@ -19,6 +19,10 @@
     {
       "name": "splash_subtitle",
       "value": "React Native"
+    },
+    {
+      "name": "camera_reason",
+      "value": "使用相机扫描二维码"
     }
   ]
 }

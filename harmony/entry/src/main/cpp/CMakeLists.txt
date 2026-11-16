@@ -36,6 +36,13 @@ add_subdirectory(
     "${OH_MODULE_DIR}/@react-native-oh-tpl/react-native-svg/src/main/cpp"
     ./svg)
 
+# react-native-vision-camera's HarmonyOS adaptation ships codegen'd C++
+# descriptors for its ArkTS `VisionCameraView` plus the turbo module delegate,
+# so the CAPI architecture can mount the preview and resolve its module.
+add_subdirectory(
+    "${OH_MODULE_DIR}/@react-native-ohos/react-native-vision-camera/src/main/cpp"
+    ./vision-camera)
+
 add_library(rnoh_app SHARED
     "./PackageProvider.cpp"
     "${RNOH_CPP_DIR}/RNOHAppNapiBridge.cpp"
@@ -44,3 +51,4 @@ add_library(rnoh_app SHARED
 target_link_libraries(rnoh_app PUBLIC rnoh)
 target_link_libraries(rnoh_app PUBLIC rnoh_webview)
 target_link_libraries(rnoh_app PUBLIC rnoh_svg)
+target_link_libraries(rnoh_app PUBLIC rnoh_vision_camera)
