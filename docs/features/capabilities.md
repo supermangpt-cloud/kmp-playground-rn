@@ -44,7 +44,7 @@
   `platform_capabilities.demo_key`，值形如 `rn-demo-2051`。
 - 结果只写在行内，格式与 KMP 相同：
   `写入「rn-demo-2051」→ 读回「rn-demo-2051」→ 删除 → 再读「null」`。
-- 真机（HONOR/HUAWEI Mate 60 Pro，HarmonyOS）实测通过，见
+- 真机（HUAWEI Mate 60 Pro，HarmonyOS）实测通过，见
   [after-capabilities-top.png](../evidence/capabilities/after-capabilities-top.png)。
 
 ### 2. 打开外部链接（`url-opener`）
@@ -109,7 +109,7 @@ stub，直接走 proxy 才能拿到 `PackageProvider.ets` 注册的模块。READ
   - `__tests__/asyncStorage.test.ts`：读、缺失 key → `null`、模块错误、写/删调用形状、
     模块未注册的明确报错。
   - `__tests__/clipboard.test.ts`：写/读调用、拒绝对象转成可读原因、模块未注册。
-  - `__tests__/capabilitiesScreen.test.tsx`：14 行顺序、四种可用状态、`limited` 行
+  - `__tests__/capabilitiesScreen.test.tsx`：14 行顺序、三种状态、`limited` 行
     有按钮和限制说明、未实现行没有按钮、三项能力的调用与行内回显。
 - 真机（1260×2720，浅色主题）：每次只装一项能力再验（按作者要求的
   链接 → 存储 → 剪贴板顺序）。基线是 `d596e7a` 的 HAP；改后是本单 HEAD 的 HAP。
