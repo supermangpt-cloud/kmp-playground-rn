@@ -41,8 +41,9 @@ class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
     if (name == "ScanKit") {
       return std::make_shared<ScanKitTurboModule>(ctx, name);
     }
-    // The app's capability probe: the ArkTS reads behind the capability page's
-    // device-information, network-status and storage-directory rows.
+    // The app's capability probe: the ArkTS calls behind the capability page's
+    // device-information, network-status, storage-directory, haptics, share and
+    // dynamic-permission rows.
     if (name == "CapabilityProbe") {
       return std::make_shared<CapabilityProbeTurboModule>(ctx, name);
     }

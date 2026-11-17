@@ -31,6 +31,22 @@
     {
       "name": "camera_reason",
       "value": "使用相机扫描二维码"
+    },
+    {
+      "name": "microphone_reason",
+      "value": "在平台能力页演示动态权限的查询与申请"
+    },
+    {
+      "name": "location_reason",
+      "value": "在平台能力页演示动态权限的查询与申请"
+    },
+    {
+      "name": "calendar_reason",
+      "value": "在平台能力页演示动态权限的查询与申请"
+    },
+    {
+      "name": "bluetooth_reason",
+      "value": "在平台能力页演示动态权限的查询与申请"
     }
   ]
 }

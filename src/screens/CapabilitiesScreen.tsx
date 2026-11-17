@@ -1,20 +1,17 @@
 /**
  * Platform-capability page: the RN port of KMP's `CapabilitiesScreen.kt`.
  *
- * The page is a skeleton, as the ticket asks: all 14 capabilities of the KMP
- * build are listed with the same titles, descriptions and order, but only the
- * capabilities the RN app already implements offer a button that really calls
- * the platform. Everything else prints `RN 版本暂未实现` where the KMP page puts
+ * All 14 capabilities of the KMP build are listed with the same titles,
+ * descriptions and order. A capability the RN app really implements calls the
+ * platform from its row; the rest print `RN 版本暂未实现` where the KMP page puts
  * its button, so a row never looks tappable and then does nothing.
  *
- * The two rows that do work reuse the paths the scan page already had:
- * `src/native/imagePicker.ts` (the HarmonyOS system photo picker) and
- * `src/native/scanKit.ts` + `src/qr/imageDecode.ts` (native Scan Kit decoding
- * with the pure-JS `jsqr` fallback). Their result is printed inside the row,
- * like KMP's `ResultLine`.
- *
- * No dependency is added for the remaining rows: the ticket explicitly keeps
- * them unimplemented until a later ticket gives each one its own native path.
+ * The implemented rows run through `src/native/*` wrappers: the app's own
+ * `CapabilityProbe` ArkTS module for the device/network/directory, haptics,
+ * share and permission calls, and the adapted libraries for storage, clipboard
+ * and the system photo picker. Results are printed inside the row, like KMP's
+ * `ResultLine`; the 动态权限 and 存储目录 cards keep per-row state so scrolling
+ * does not forget it.
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
@@ -32,14 +29,28 @@ import {
   setString as writeClipboard,
 } from '../native/clipboard';
 import {readDeviceInfo} from '../native/deviceInfo';
+import {HapticStrength, vibrate} from '../native/haptics';
 import {launchImageLibrary} from '../native/imagePicker';
 import {NetworkStatus, readNetworkStatus} from '../native/networkStatus';
+import {
+  openPermissionSettings,
+  PERMISSION_PLATFORM_NOTE,
+  PERMISSIONS,
+  permissionAdvice,
+  permissionStateLabel,
+  PermissionId,
+  PermissionState,
+  readPermissionState,
+  requestPermission,
+  showsPermissionSettings,
+} from '../native/permissions';
 import {decodeImage, isNativeScanAvailable} from '../native/scanKit';
 import {
   DirectoryKind,
   readDirectories,
   StorageDirectory,
 } from '../native/storageDirectories';
+import {SHARE_DEMO_TEXT, shareText} from '../native/systemShare';
 import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
 import {decodeQrFromBase64} from '../qr/imageDecode';
 import {colors} from '../ui/theme';
@@ -61,6 +72,23 @@ type DirectoriesState = {
   message?: string;
   copiedKind?: DirectoryKind;
 };
+
+/** One 动态权限 row: the last state, the running action and its last message. */
+type PermissionRowState = {
+  /** Absent until 查询 or 申请 produced an answer. */
+  state?: PermissionState;
+  busy?: 'query' | 'request' | 'settings';
+  message?: {text: string; error: boolean};
+};
+
+type PermissionsState = Record<string, PermissionRowState>;
+
+/** One button of the 震动 / 触觉 row, in the KMP order. */
+const HAPTIC_STRENGTHS: readonly {strength: HapticStrength; label: string}[] = [
+  {strength: 'light', label: '轻'},
+  {strength: 'medium', label: '中'},
+  {strength: 'heavy', label: '重'},
+];
 
 /** Key KMP's storage demo uses; removed at the end of every round trip. */
 const STORAGE_DEMO_KEY = 'platform_capabilities.demo_key';
@@ -232,22 +260,208 @@ function DirectoriesBody({
   );
 }
 
+/**
+ * The 震动 / 触觉 row body: three buttons side by side, exactly like KMP (no
+ * separate query button). The result line is the card's shared one.
+ */
+function HapticsBody({
+  onPress,
+}: {
+  onPress: (strength: HapticStrength) => void;
+}): JSX.Element {
+  return (
+    <View style={styles.hapticsRow}>
+      {HAPTIC_STRENGTHS.map(({strength, label}) => (
+        <Pressable
+          key={strength}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}震动`}
+          onPress={() => onPress(strength)}
+          style={({pressed}) => [
+            styles.hapticButton,
+            pressed && styles.pressed,
+          ]}
+          testID={`capability-haptic-${strength}`}>
+          <Text style={styles.hapticText}>{label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** The chip colour for one permission state. */
+function permissionChipStyles(state?: PermissionState): object[] {
+  switch (state) {
+    case 'granted':
+      return [styles.permissionChip, styles.permissionChipGranted];
+    case 'denied':
+      return [styles.permissionChip, styles.permissionChipDenied];
+    default:
+      return [styles.permissionChip, styles.permissionChipUnknown];
+  }
+}
+
+type PermissionsBodyProps = {
+  state: PermissionsState;
+  onQuery: (id: PermissionId) => void;
+  onRequest: (id: PermissionId) => void;
+  onSettings: (id: PermissionId) => void;
+};
+
+/**
+ * The 动态权限 card body: the platform note and one row per permission.
+ *
+ * Every row shows its last state (未查询 before the first read), 查询 and 申请,
+ * the advice for that state and, once a denial means the system will not show
+ * its dialog again, 去设置. The album and contacts rows are marked unavailable
+ * with the ACL reason and have no buttons at all: offering one would promise
+ * something a normal app cannot obtain.
+ */
+function PermissionsBody({
+  state,
+  onQuery,
+  onRequest,
+  onSettings,
+}: PermissionsBodyProps): JSX.Element {
+  return (
+    <View style={styles.permissions}>
+      <Text style={styles.permissionNote} testID="capability-permission-note">
+        {PERMISSION_PLATFORM_NOTE}
+      </Text>
+      {PERMISSIONS.map((permission, index) => {
+        const row = state[permission.id] ?? {};
+        const unavailable = permission.unavailableReason;
+        const running = row.busy !== undefined;
+        return (
+          <View
+            key={permission.id}
+            style={[
+              styles.permissionRow,
+              index > 0 && styles.permissionRowDivided,
+            ]}
+            testID={`capability-permission-${permission.id}`}>
+            <View style={styles.permissionHeader}>
+              <Text style={styles.permissionLabel}>{permission.label}</Text>
+              {unavailable === undefined ? (
+                <Text
+                  style={permissionChipStyles(row.state)}
+                  testID={`capability-permission-state-${permission.id}`}>
+                  {permissionStateLabel(row.state)}
+                </Text>
+              ) : null}
+            </View>
+
+            {unavailable !== undefined ? (
+              <Text
+                style={styles.permissionUnavailable}
+                testID={`capability-permission-unavailable-${permission.id}`}>
+                不可用：{unavailable}
+              </Text>
+            ) : (
+              <>
+                <View style={styles.permissionButtons}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`查询${permission.label}权限`}
+                    disabled={running}
+                    onPress={() => onQuery(permission.id)}
+                    style={({pressed}) => [
+                      styles.permissionTextButton,
+                      running && styles.permissionButtonDisabled,
+                      pressed && styles.pressed,
+                    ]}
+                    testID={`capability-permission-query-${permission.id}`}>
+                    <Text style={styles.permissionTextButtonText}>
+                      {row.busy === 'query' ? '查询中…' : '查询'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`申请${permission.label}权限`}
+                    disabled={running}
+                    onPress={() => onRequest(permission.id)}
+                    style={({pressed}) => [
+                      styles.permissionRequestButton,
+                      running && styles.permissionButtonDisabled,
+                      pressed && styles.pressed,
+                    ]}
+                    testID={`capability-permission-request-${permission.id}`}>
+                    <Text style={styles.permissionRequestText}>
+                      {row.busy === 'request' ? '申请中…' : '申请'}
+                    </Text>
+                  </Pressable>
+                  {showsPermissionSettings(row.state) ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`打开${permission.label}权限设置`}
+                      disabled={running}
+                      onPress={() => onSettings(permission.id)}
+                      style={({pressed}) => [
+                        styles.permissionTextButton,
+                        running && styles.permissionButtonDisabled,
+                        pressed && styles.pressed,
+                      ]}
+                      testID={`capability-permission-settings-${permission.id}`}>
+                      <Text style={styles.permissionTextButtonText}>
+                        {row.busy === 'settings' ? '打开中…' : '去设置'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Text
+                  style={styles.permissionAdvice}
+                  testID={`capability-permission-advice-${permission.id}`}>
+                  {permissionAdvice(row.state)}
+                </Text>
+                {row.message === undefined ? null : (
+                  <Text
+                    style={[
+                      styles.permissionMessage,
+                      row.message.error && styles.permissionMessageError,
+                    ]}
+                    testID={`capability-permission-result-${permission.id}`}>
+                    {row.message.text}
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   const [outcomes, setOutcomes] = useState<Record<string, RowOutcome>>({});
   const [directories, setDirectories] = useState<DirectoriesState>({
     status: 'loading',
     rows: [],
   });
+  const [permissions, setPermissions] = useState<PermissionsState>({});
   // The picker is modal and the button stays mounted while it is open; a ref
   // stops a second press from opening a second picker behind the first.
   const busy = useRef(false);
   // The directory card's 刷新 and its first automatic read share this guard, so
   // the permission request cannot be started twice.
   const readingDirectories = useRef(false);
+  // Each permission row keeps its own guard, so asking for one permission does
+  // not block another row's 查询.
+  const permissionBusy = useRef<Record<string, boolean>>({});
 
   const setOutcome = useCallback((id: string, outcome: RowOutcome) => {
     setOutcomes(current => ({...current, [id]: outcome}));
   }, []);
+
+  const setPermissionRow = useCallback(
+    (id: PermissionId, patch: Partial<PermissionRowState>) => {
+      setPermissions(current => ({
+        ...current,
+        [id]: {...current[id], ...patch},
+      }));
+    },
+    [],
+  );
 
   /** 「写 → 读 → 删 → 再读」: the full storage round trip, inline. */
   const storageRoundTrip = useCallback(
@@ -334,6 +548,143 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
       }));
     }
   }, []);
+
+  /**
+   * 「轻 / 中 / 重」: one tap. A fallback note (the touch-feedback switch made the
+   * system drop `physicalFeedback`) is printed, so "nothing felt" is explained
+   * rather than left looking like a dead button.
+   */
+  const triggerHaptic = useCallback(
+    async (strength: HapticStrength) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      setOutcome('haptics', {kind: 'busy'});
+      try {
+        const result = await vibrate(strength);
+        const label =
+          HAPTIC_STRENGTHS.find(item => item.strength === strength)?.label ??
+          '';
+        const suffix = result.note === undefined ? '' : `（${result.note}）`;
+        setOutcome('haptics', {
+          kind: 'done',
+          text: `已触发${label}震动${suffix}`,
+        });
+      } catch (error) {
+        setOutcome('haptics', {
+          kind: 'error',
+          text: `失败：${messageOf(error)}`,
+        });
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
+
+  /** 「分享文本」: hand the text to the system share panel. */
+  const shareDemoText = useCallback(
+    async (id: string) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      setOutcome(id, {kind: 'busy'});
+      try {
+        await shareText(SHARE_DEMO_TEXT);
+        setOutcome(id, {
+          kind: 'done',
+          text: `已拉起系统分享面板（内容：${SHARE_DEMO_TEXT}）`,
+        });
+      } catch (error) {
+        setOutcome(id, {
+          kind: 'error',
+          text: `失败：${messageOf(error)}`,
+        });
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
+
+  /** 「查询」 on one permission row: no dialog, just the current state. */
+  const queryPermission = useCallback(
+    async (id: PermissionId) => {
+      if (permissionBusy.current[id]) {
+        return;
+      }
+      permissionBusy.current[id] = true;
+      setPermissionRow(id, {busy: 'query', message: undefined});
+      try {
+        const state = await readPermissionState(id);
+        setPermissionRow(id, {state});
+      } catch (error) {
+        setPermissionRow(id, {
+          message: {text: `查询失败：${messageOf(error)}`, error: true},
+        });
+      } finally {
+        permissionBusy.current[id] = false;
+        setPermissionRow(id, {busy: undefined});
+      }
+    },
+    [setPermissionRow],
+  );
+
+  /** 「申请」 on one permission row: shows the system dialog. */
+  const askPermission = useCallback(
+    async (id: PermissionId) => {
+      if (permissionBusy.current[id]) {
+        return;
+      }
+      permissionBusy.current[id] = true;
+      setPermissionRow(id, {busy: 'request', message: undefined});
+      try {
+        const state = await requestPermission(id);
+        setPermissionRow(id, {state});
+      } catch (error) {
+        setPermissionRow(id, {
+          message: {text: `申请失败：${messageOf(error)}`, error: true},
+        });
+      } finally {
+        permissionBusy.current[id] = false;
+        setPermissionRow(id, {busy: undefined});
+      }
+    },
+    [setPermissionRow],
+  );
+
+  /**
+   * 「去设置」: after a denial HarmonyOS will not show its first-run dialog
+   * again, so this opens the permission's settings page instead of dead-ending.
+   */
+  const openSettingsForPermission = useCallback(
+    async (id: PermissionId) => {
+      if (permissionBusy.current[id]) {
+        return;
+      }
+      permissionBusy.current[id] = true;
+      setPermissionRow(id, {busy: 'settings', message: undefined});
+      try {
+        await openPermissionSettings(id);
+        setPermissionRow(id, {
+          message: {
+            text: '已打开系统设置页；回到 App 后点「查询」刷新状态',
+            error: false,
+          },
+        });
+      } catch (error) {
+        setPermissionRow(id, {
+          message: {text: `打开设置失败：${messageOf(error)}`, error: true},
+        });
+      } finally {
+        permissionBusy.current[id] = false;
+        setPermissionRow(id, {busy: undefined});
+      }
+    },
+    [setPermissionRow],
+  );
 
   /** 「读取设备信息」: the real model, system and app build, as the device reports them. */
   const readDevice = useCallback(
@@ -611,6 +962,14 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         case 'decode-image':
           decodePickedImage(capability.id);
           return;
+        case 'system-share':
+          shareDemoText(capability.id);
+          return;
+        // The haptics and permission cards render their own bodies, so no
+        // single action button ever dispatches these.
+        case 'haptics':
+        case 'permissions':
+          return;
       }
     },
     [
@@ -621,6 +980,7 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
       pickImage,
       probeNetwork,
       readDevice,
+      shareDemoText,
       storageRoundTrip,
     ],
   );
@@ -685,6 +1045,15 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
                   state={directories}
                   onRefresh={() => loadDirectories(true)}
                   onCopy={copyDirectory}
+                />
+              ) : capability.action === 'haptics' ? (
+                <HapticsBody onPress={triggerHaptic} />
+              ) : capability.action === 'permissions' ? (
+                <PermissionsBody
+                  state={permissions}
+                  onQuery={queryPermission}
+                  onRequest={askPermission}
+                  onSettings={openSettingsForPermission}
                 />
               ) : interactive ? (
                 <View style={styles.actionRow}>
@@ -936,6 +1305,128 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: colors.discount,
     fontSize: 10,
+  },
+  hapticsRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  hapticButton: {
+    minHeight: 38,
+    minWidth: 64,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 19,
+    backgroundColor: colors.accent,
+  },
+  hapticText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  permissions: {
+    marginTop: 6,
+  },
+  permissionNote: {
+    color: colors.textHint,
+    fontSize: 11,
+    lineHeight: 17,
+    paddingBottom: 2,
+  },
+  permissionRow: {
+    paddingVertical: 7,
+  },
+  permissionRowDivided: {
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  permissionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  permissionLabel: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  permissionChip: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  permissionChipGranted: {
+    borderColor: colors.discount,
+    color: colors.discount,
+  },
+  permissionChipDenied: {
+    borderColor: colors.delete,
+    color: colors.delete,
+  },
+  permissionChipUnknown: {
+    borderColor: colors.textHint,
+    color: colors.textHint,
+  },
+  permissionButtons: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  permissionTextButton: {
+    minHeight: 34,
+    minWidth: 52,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  permissionTextButtonText: {
+    color: colors.accent,
+    fontSize: 12,
+  },
+  permissionRequestButton: {
+    minHeight: 34,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 17,
+    backgroundColor: colors.accent,
+  },
+  permissionRequestText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  permissionButtonDisabled: {
+    opacity: 0.5,
+  },
+  permissionAdvice: {
+    marginTop: 1,
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 17,
+  },
+  permissionMessage: {
+    marginTop: 2,
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 17,
+  },
+  permissionMessageError: {
+    color: colors.delete,
+  },
+  permissionUnavailable: {
+    marginTop: 4,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
   },
   actionRow: {
     marginTop: 10,
