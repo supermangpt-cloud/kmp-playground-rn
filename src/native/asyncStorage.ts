@@ -1,12 +1,12 @@
 /**
- * JS side of `@react-native-oh-tpl/async-storage`'s HarmonyOS module.
+ * JS side of the `RNCAsyncStorage` module, shared by all three platforms.
  *
- * The package's own binding goes through RN 0.72's `TurboModuleRegistry`, which
- * checks the legacy `NativeModules` table before the turbo module proxy; on
- * RNOH that table answers every name with an empty stub, so the package ends up
- * with a module that has no methods. Asking `global.__turboModuleProxy`
- * directly reaches the ArkTS `RNCAsyncStorage` module registered by
- * `PackageProvider.ets`, the same route `src/native/imagePicker.ts` takes.
+ * On Android and iOS this is the official `@react-native-async-storage/
+ * async-storage` module in the legacy `NativeModules` table. On HarmonyOS the
+ * package's own binding would go through RN 0.72's `TurboModuleRegistry`, which
+ * checks that table first and gets an empty stub from RNOH; asking
+ * `global.__turboModuleProxy` directly reaches the ArkTS module registered by
+ * `PackageProvider.ets` instead.
  *
  * `multiGet` / `multiSet` / `multiRemove` are the callback-style methods of that
  * module (its C++ package binds them with `ARK_METHOD_METADATA`).
@@ -71,7 +71,8 @@ export function getItem(key: string): Promise<string | null> {
         return;
       }
       const pair = result?.find(([storedKey]) => storedKey === key);
-      // The HarmonyOS module answers a missing key with `[key, '']`.
+      // HarmonyOS answers a missing key with `[key, '']`; the official module
+      // with `[key, null]`.
       resolve(pair === undefined || pair[1] === '' ? null : pair[1]);
     });
   });

@@ -1,14 +1,10 @@
 /**
- * JS side of the app's `CapabilityProbe` ArkTS module for the 设备信息 row.
+ * JS side of the app's `CapabilityProbe` module for the 设备信息 row.
  *
- * The ArkTS module is registered by
- * `harmony/entry/src/main/ets/capabilities/CapabilityProbePackage.ets`; it reads
- * `@ohos.deviceInfo` and `bundleManager` on the device, so the row shows the
- * real model, system version and app build instead of sample values.
- *
- * `getTurboModule` is used directly for the same reason as the other HarmonyOS
- * wrappers: RN 0.72's `TurboModuleRegistry` checks the legacy `NativeModules`
- * table first, and RNOH answers every name there with an empty stub.
+ * The module reads the platform's own device and app metadata:
+ * `@ohos.deviceInfo` / `bundleManager` on HarmonyOS, `Build` / `PackageManager`
+ * on Android and `UIDevice` / `NSBundle` on iOS, so the row shows the real
+ * model, system version and app build instead of sample values.
  */
 import {getTurboModule} from './turboModule';
 

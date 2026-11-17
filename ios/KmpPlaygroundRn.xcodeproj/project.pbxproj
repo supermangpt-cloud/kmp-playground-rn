@@ -8,13 +8,24 @@
 
 /* Begin PBXBuildFile section */
 		00E356F31AD99517003FC87E /* KmpPlaygroundRnTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 00E356F21AD99517003FC87E /* KmpPlaygroundRnTests.m */; };
+		071A02EB091F03C2CE06A9BC /* ImageSave.mm in Sources */ = {isa = PBXBuildFile; fileRef = 037F776B8633A0BF8F84C86B /* ImageSave.mm */; };
 		0C80B921A6F3F58F76C31292 /* libPods-KmpPlaygroundRn.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-KmpPlaygroundRn.a */; };
 		13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB01A68108700A75B9A /* AppDelegate.mm */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		A1B2C3D42E00000100000001 /* SplashViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42E00000100000003 /* SplashViewController.m */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
+		24F43CA786D4DBF79299F305 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 006259973E7A906E8EB31905 /* UserNotifications.framework */; };
+		56C2D07BAFCBEDE045D5254A /* WifiNetwork.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */; };
+		684DA1E66B86EBB875876B9C /* CapabilityProbe.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */; };
+		69D7297169CDF17E9AFC8AAD /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D628D35B0C5A5D55D82BBF75 /* CoreLocation.framework */; };
+		7165D1ABCA6EF16B7CBC3057 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 724445485693F45CED317094 /* EventKit.framework */; };
+		748DB23E710A3B8D2002E6A5 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FACD62BE79886AB5160B2CA6 /* AVFoundation.framework */; };
 		7699B88040F8A987B510C191 /* libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 19F6CBCC0A4E27FBF8BF4A61 /* libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		8B97049EA0F357D2E1E552C8 /* Contacts.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 03F5EEAE16C4C4EA9C7369A1 /* Contacts.framework */; };
+		9776252DD5AD7BA0CDEAC4DD /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B5F6B2C13D7E31C43C9EF16 /* Network.framework */; };
+		A1B2C3D42E00000100000001 /* SplashViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42E00000100000003 /* SplashViewController.m */; };
+		BD9C105DBDDFD3EB4F6BB2CC /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C043BC35F0A9D238AA3124A4 /* CoreBluetooth.framework */; };
+		C6D92921D2FDFF2AADFA2397 /* Photos.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 682B21625DD7623A35638C6A /* Photos.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,25 +39,39 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		006259973E7A906E8EB31905 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		00E356EE1AD99517003FC87E /* KmpPlaygroundRnTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KmpPlaygroundRnTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		00E356F11AD99517003FC87E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		00E356F21AD99517003FC87E /* KmpPlaygroundRnTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KmpPlaygroundRnTests.m; sourceTree = "<group>"; };
+		037F776B8633A0BF8F84C86B /* ImageSave.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = ImageSave.mm; path = KmpPlaygroundRn/ImageSave.mm; sourceTree = "<group>"; };
+		03F5EEAE16C4C4EA9C7369A1 /* Contacts.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Contacts.framework; path = System/Library/Frameworks/Contacts.framework; sourceTree = SDKROOT; };
 		13B07F961A680F5B00A75B9A /* KmpPlaygroundRn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KmpPlaygroundRn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FAF1A68108700A75B9A /* AppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppDelegate.h; path = KmpPlaygroundRn/AppDelegate.h; sourceTree = "<group>"; };
 		13B07FB01A68108700A75B9A /* AppDelegate.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AppDelegate.mm; path = KmpPlaygroundRn/AppDelegate.mm; sourceTree = "<group>"; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = KmpPlaygroundRn/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = KmpPlaygroundRn/Info.plist; sourceTree = "<group>"; };
 		13B07FB71A68108700A75B9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = KmpPlaygroundRn/main.m; sourceTree = "<group>"; };
-		A1B2C3D42E00000100000002 /* SplashViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SplashViewController.h; path = KmpPlaygroundRn/SplashViewController.h; sourceTree = "<group>"; };
-		A1B2C3D42E00000100000003 /* SplashViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = SplashViewController.m; path = KmpPlaygroundRn/SplashViewController.m; sourceTree = "<group>"; };
 		19F6CBCC0A4E27FBF8BF4A61 /* libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = WifiNetwork.mm; path = KmpPlaygroundRn/WifiNetwork.mm; sourceTree = "<group>"; };
+		2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = CapabilityProbe.mm; path = KmpPlaygroundRn/CapabilityProbe.mm; sourceTree = "<group>"; };
+		33ADA2C5D2C3E2AC39F26992 /* ImageSave.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = ImageSave.h; path = KmpPlaygroundRn/ImageSave.h; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-KmpPlaygroundRn.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-KmpPlaygroundRn.debug.xcconfig"; path = "Target Support Files/Pods-KmpPlaygroundRn/Pods-KmpPlaygroundRn.debug.xcconfig"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-KmpPlaygroundRn.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-KmpPlaygroundRn.release.xcconfig"; path = "Target Support Files/Pods-KmpPlaygroundRn/Pods-KmpPlaygroundRn.release.xcconfig"; sourceTree = "<group>"; };
 		5B7EB9410499542E8C5724F5 /* Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.debug.xcconfig"; path = "Target Support Files/Pods-KmpPlaygroundRn-KmpPlaygroundRnTests/Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.debug.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-KmpPlaygroundRn.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-KmpPlaygroundRn.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		60E60B471BB105C927D3841F /* CapabilityProbe.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = CapabilityProbe.h; path = KmpPlaygroundRn/CapabilityProbe.h; sourceTree = "<group>"; };
+		682B21625DD7623A35638C6A /* Photos.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Photos.framework; path = System/Library/Frameworks/Photos.framework; sourceTree = SDKROOT; };
+		6B5F6B2C13D7E31C43C9EF16 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
+		724445485693F45CED317094 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = KmpPlaygroundRn/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		89C6BE57DB24E9ADA2F236DE /* Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.release.xcconfig"; path = "Target Support Files/Pods-KmpPlaygroundRn-KmpPlaygroundRnTests/Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.release.xcconfig"; sourceTree = "<group>"; };
+		A1B2C3D42E00000100000002 /* SplashViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SplashViewController.h; path = KmpPlaygroundRn/SplashViewController.h; sourceTree = "<group>"; };
+		A1B2C3D42E00000100000003 /* SplashViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = SplashViewController.m; path = KmpPlaygroundRn/SplashViewController.m; sourceTree = "<group>"; };
+		C043BC35F0A9D238AA3124A4 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
+		D628D35B0C5A5D55D82BBF75 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
+		DB12236E270E111713861508 /* WifiNetwork.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = WifiNetwork.h; path = KmpPlaygroundRn/WifiNetwork.h; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		FACD62BE79886AB5160B2CA6 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,6 +88,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				0C80B921A6F3F58F76C31292 /* libPods-KmpPlaygroundRn.a in Frameworks */,
+				C6D92921D2FDFF2AADFA2397 /* Photos.framework in Frameworks */,
+				69D7297169CDF17E9AFC8AAD /* CoreLocation.framework in Frameworks */,
+				8B97049EA0F357D2E1E552C8 /* Contacts.framework in Frameworks */,
+				7165D1ABCA6EF16B7CBC3057 /* EventKit.framework in Frameworks */,
+				9776252DD5AD7BA0CDEAC4DD /* Network.framework in Frameworks */,
+				748DB23E710A3B8D2002E6A5 /* AVFoundation.framework in Frameworks */,
+				24F43CA786D4DBF79299F305 /* UserNotifications.framework in Frameworks */,
+				BD9C105DBDDFD3EB4F6BB2CC /* CoreBluetooth.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -97,6 +130,12 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB71A68108700A75B9A /* main.m */,
+				60E60B471BB105C927D3841F /* CapabilityProbe.h */,
+				2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */,
+				33ADA2C5D2C3E2AC39F26992 /* ImageSave.h */,
+				037F776B8633A0BF8F84C86B /* ImageSave.mm */,
+				DB12236E270E111713861508 /* WifiNetwork.h */,
+				2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */,
 			);
 			name = KmpPlaygroundRn;
 			sourceTree = "<group>";
@@ -107,6 +146,14 @@
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				5DCACB8F33CDC322A6C60F78 /* libPods-KmpPlaygroundRn.a */,
 				19F6CBCC0A4E27FBF8BF4A61 /* libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a */,
+				682B21625DD7623A35638C6A /* Photos.framework */,
+				D628D35B0C5A5D55D82BBF75 /* CoreLocation.framework */,
+				03F5EEAE16C4C4EA9C7369A1 /* Contacts.framework */,
+				724445485693F45CED317094 /* EventKit.framework */,
+				6B5F6B2C13D7E31C43C9EF16 /* Network.framework */,
+				FACD62BE79886AB5160B2CA6 /* AVFoundation.framework */,
+				006259973E7A906E8EB31905 /* UserNotifications.framework */,
+				C043BC35F0A9D238AA3124A4 /* CoreBluetooth.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -420,6 +467,9 @@
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
 				A1B2C3D42E00000100000001 /* SplashViewController.m in Sources */,
 				13B07FC11A68108700A75B9A /* main.m in Sources */,
+				684DA1E66B86EBB875876B9C /* CapabilityProbe.mm in Sources */,
+				071A02EB091F03C2CE06A9BC /* ImageSave.mm in Sources */,
+				56C2D07BAFCBEDE045D5254A /* WifiNetwork.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -455,7 +505,7 @@
 					"-lc++",
 					"$(inherited)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.kmp.rn";
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.kmp.rn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KmpPlaygroundRn.app/KmpPlaygroundRn";
 			};
@@ -479,7 +529,7 @@
 					"-lc++",
 					"$(inherited)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.kmp.rn";
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.kmp.rn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KmpPlaygroundRn.app/KmpPlaygroundRn";
 			};
@@ -504,7 +554,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.kmp.rn";
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.kmp.rn;
 				PRODUCT_NAME = KmpPlaygroundRn;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -530,7 +580,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.kmp.rn";
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.kmp.rn;
 				PRODUCT_NAME = KmpPlaygroundRn;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -570,7 +620,7 @@
 				COPY_PHASE_STRIP = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = "";
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = i386;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -578,6 +628,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
+					_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION,
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -598,12 +649,21 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = "$(inherited)";
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
 					"-DFOLLY_MOBILE=1",
 					"-DFOLLY_USE_LIBCPP=1",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-Wl",
+					"-ld_classic",
+					" ",
+					"-Wl -ld_classic ",
+				);
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 			};
 			name = Debug;
@@ -641,9 +701,13 @@
 				COPY_PHASE_STRIP = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = "";
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = i386;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION,
+				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
@@ -661,12 +725,21 @@
 					"\"$(inherited)\"",
 				);
 				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_CFLAGS = "$(inherited)";
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
 					"-DFOLLY_MOBILE=1",
 					"-DFOLLY_USE_LIBCPP=1",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-Wl",
+					"-ld_classic",
+					" ",
+					"-Wl -ld_classic ",
+				);
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;
 			};

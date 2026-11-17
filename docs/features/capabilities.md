@@ -1,14 +1,20 @@
 # 平台能力页
 
-能力页从骨架推进到五批真实能力。14 行的名称、说明、顺序仍与 KMP 版
-（`CapabilitiesScreen.kt` 真机 dump）一致；页面结构也还是 KMP 的
-`名称 + 说明 + 右上状态 + 下方操作按钮 + 行内结果`：
+能力页从骨架推进到六批鸿蒙能力，第七批把同样的 14 行接到 Android / iOS。
+14 行的名称、说明、顺序仍与 KMP 版（`CapabilitiesScreen.kt` 真机 dump）一致；
+页面结构也还是 KMP 的 `名称 + 说明 + 右上状态 + 下方操作按钮 + 行内结果`。
+
+状态先按鸿蒙写（Android / iOS 的覆盖在 `capabilityCatalog.*`）：
 
 - **可用**（13 行）：本地存储、存储目录、设备信息、网络状态、震动/触觉、
   系统分享、打开外部链接、动态权限、蓝牙 LE、WiFi、保存图片到相册、从相册选图、
   图片解析二维码。
 - **部分可用**（1 行）：剪贴板。写入可用，读取被鸿蒙的系统权限限制，行内写明原因。
-- **未实现**（0 行）：本批之后 14 行都能点，没有「未实现」占位。
+- **未实现**（0 行）：14 行都能点，没有「未实现」占位。
+
+平台差异：Android 上剪贴板也变成「可用」；iOS 上 WiFi 是「部分可用」
+（没有 Apple 的 WiFi/Hotspot entitlement，普通应用不能扫描附近 AP），
+其余 13 行可用。详见「第七批：Android / iOS」。
 
 首屏、购物车、扫码页的现有对齐没有改动。
 
@@ -587,6 +593,90 @@ method map，`AppPackage.h` 与 `PackageProvider.ets` 各加一处；JS 侧是
 | 连接成功 | — | `after-wifi-connected.jpeg` `已连接：…` + 该行「已连接」+ 当前 SSID |
 | 确认框取消 | — | `after-wifi-cancelled.jpeg` `已取消连接：…` |
 | 定位关闭 | — | `after-wifi-location-off.jpeg` 「请下拉通知栏打开「定位」后重试」 |
+
+## 第七批：Android / iOS
+
+前六批把 14 行都接到了鸿蒙的真实 API 上；这一批把同一批行接到 Android 与 iOS。
+根因和 issue #30 的实测一致：`@react-native-oh-tpl/*` 只是鸿蒙 fork，Android / iOS
+上 autolinking 找不到原生模块，`getTurboModule()` 返回空，页面要么显示「模块没有
+注册」，要么在目录卡的 catch 里触发 Hermes 的 catch-binding 问题直接红屏。
+
+### 接入方式
+
+| 层 | 做法 |
+| --- | --- |
+| 原生模块查找 | `src/native/turboModule.ts` 在 Android / iOS 上读 legacy `NativeModules`；`turboModule.harmony.ts` 保留原来的 `__turboModuleProxy` 路径。Metro 按 `harmony` 平台选文件，14 个 wrapper 本身不改 |
+| 四个官方库 | `@react-native-async-storage/async-storage` 1.21.0、`@react-native-clipboard/clipboard` 1.13.2、`react-native-ble-plx` 3.2.0、`react-native-image-picker` 7.0.3（版本对齐 osc-tpl fork 的上游版本），Android / iOS 正常 autolink |
+| ble-plx fork | `react-native.config.js` 把 `@react-native-oh-tpl/react-native-ble-plx` 的 ios / android 平台设为 null：该 fork 带一个指向不存在 `ios/` 目录的 podspec，会让 `pod install` 失败；鸿蒙侧本来就是手工接 har，不依赖 autolinking |
+| 平台文案/状态 | `capabilityCatalog.ts`（Android）、`.ios.ts`、`.harmony.ts`；`permissionCatalog.*`；`directoryCatalog.*`。剪贴板只在鸿蒙 `limited`，WiFi 只在 iOS `limited`，权限的 ACL 说明只留在鸿蒙 |
+| Android 原生 | `android/app/src/main/java/com/example/kmp/rn/capabilities/`：`CapabilityProbeModule`（设备信息 / 网络 / 目录 / 震动 / 分享 / 权限）、`ImageSaveModule`（MediaStore）、`WifiNetworkModule`（扫描缓存 + `WifiNetworkSpecifier`），`CapabilityModulesPackage` 在 `MainApplication` 注册；`AndroidManifest.xml` 补齐运行时权限 |
+| iOS 原生 | `ios/KmpPlaygroundRn/`：`CapabilityProbe.mm`、`ImageSave.mm`（PHPhotoLibrary）、`WifiNetwork.mm`（iOS 只返回平台限制，不伪造 AP）；`Info.plist` 补 10 条 usage string；`.mm` 与 8 个系统 framework 加进 target |
+
+Android 与 iOS 的权限都映射成同一套三态 `granted` / `denied` / `notDetermined`：
+Android 用 `checkSelfPermission` + 首次申请记录（SharedPreferences）区分
+`notDetermined`；iOS 用各框架的 authorization status。
+
+### 各平台状态
+
+| 行 | 鸿蒙 | Android | iOS |
+| --- | --- | --- | --- |
+| 本地存储 / 剪贴板 / 相册选图 / 蓝牙 LE / 图片解析 | 可用 | 可用 | 可用 |
+| 设备信息 / 网络 / 存储目录 / 震动 / 分享 / 动态权限 / 保存图片到相册 / URL | 可用 | 可用 | 可用 |
+| WiFi | 可用 | 可用（扫描 + 连接） | **部分可用**：无 Access WiFi Information / Hotspot entitlement，只显示平台限制 |
+| 剪贴板 | 部分可用（PasteButton） | 可用 | 可用（iOS 16+ 读取会弹系统粘贴确认） |
+
+### 验证
+
+- **Android 模拟器（API 36，1080×2400，浅色）**：基线是 `main` @ `7bd1957` 的
+  APK + 同一 Metro 上的 main JS；改后是 ticket 分支的 APK + 分支 JS。基线一进
+  能力页就在 `loadDirectories` 的 catch 里红屏
+  （`Property 'error' does not exist`，截图 `before-capabilities-top.png`）；改后
+  14 行状态、目录路径、设备信息、网络、剪贴板、分享、URL、WiFi 扫描（1 个虚拟 AP
+  `AndroidWifi`）、保存图片到相册（MediaStore 里有 `KMP-RN-QR-*.png`）都在行内
+  显示真实结果（`after-capabilities-top.png`、`after-capabilities-ble-wifi.png`）。
+  设备信息为 `sdk_gphone64_arm64 · Android 16 · KmpPlaygroundRn 1.0`，网络为
+  `已联网 · wifi`。
+- **Android 真机（JEF-AN00 / `E6EDU20424002801`）**：设备处于锁屏且需要密码/指纹，
+  `adb shell input` 的滑动不被 keyguard 接受，`locksettings` 也要 credential；
+  因此 BLE 真实广播、WiFi 真实 AP、震动马达三项**未在真机验证**。模拟器上没有
+  蓝牙硬件（扫描能启动但 0 台）也没有振动马达，这两项只能算「模块可调用」，
+  不能算能力已验证。
+- **iOS**：`pod install` 可用（`NO_FLIPPER=1`；Flipper 在 Xcode 27 下编不过），
+  `xcodebuild` 用 `IPHONEOS_DEPLOYMENT_TARGET=15.0` 覆盖（工程仍是 12.4，未改，
+  避免替产品决定最低版本）+ Yoga/glog 加 `-Wno-error=deprecated-*` 后
+  **BUILD SUCCEEDED**，三个 `.mm` 参与编译与链接。但 App 一启动即被 iOS 27 SDK
+  拒绝：`Application failed to launch: UIScene life cycle is required for apps
+  built with this SDK`（RN 0.72 的 `RCTAppDelegate` 还是旧 `window` 生命周期）。
+  这是工具链/RN 版本的限制，不是本批代码的错误；在没有 Xcode 15/16 或没有把
+  AppDelegate 迁到 UIScene 之前，iOS **运行时未验证**（含权限弹框、相册写入、
+  分享面板）。iOS WiFi 在本机没有 entitlement，代码只返回限制说明，也没有可验证
+  的真实扫描。
+- **鸿蒙回归**：`npm run dev` 生成的 `bundle.harmony.js` 里是
+  `__turboModuleProxy` 版本和 `.harmony` 文案（`photoAccessHelper` / `PasteButton` /
+  `addCandidateConfig`），不含 Android/iOS 的文案；本机没有 hvigor/ohpm，HAP
+  编译交给 CI 的 harmony job，JS 侧没有回归。`npx tsc --noEmit`、`eslint`、
+  `jest`（26 个文件 / 201 个用例）通过。
+
+### 证据
+
+截图在 `docs/evidence/capabilities/android/`：
+
+| 场景 | 基线（main @ 7bd1957） | 改后（本分支） |
+| --- | --- | --- |
+| 能力页顶部 | `before-capabilities-top.png` 红屏 `Property 'error' does not exist` | `after-capabilities-top.png` 14 行可用 + 真实目录路径 |
+| BLE / WiFi / 保存图片 | 同上（页面已崩） | `after-capabilities-ble-wifi.png` WiFi 扫描结果、相册保存结果 |
+
+「保存图片到相册」的真实文件也在设备上核对过：
+`/sdcard/Pictures/KmpPlaygroundRn/KMP-RN-QR-20261117-231125.png`（157290 字节），
+MediaStore 的 `_display_name` 与行内回显一致。
+
+### 已知限制
+
+- iOS WiFi 无 entitlement，永远只能是 `limited`；iOS BLE / 震动在模拟器上无法验证。
+- Android 9 及以下的 legacy WiFi 连接、`WRITE_EXTERNAL_STORAGE` 相册写入路径没有
+  设备可测；当前设备/模拟器都是 Android 12+。
+- iOS 工程的最低版本仍是 12.4；Xcode 27 本地验证时只用了命令行覆盖，没有提交
+  `platform :ios, '15.0'`。CI 的 ios job 仍保持禁用。
 
 ## 与 KMP 版的几处有意差异
 

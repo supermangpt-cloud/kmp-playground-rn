@@ -1,6 +1,7 @@
 /**
- * JS side of the app's `ImageSave` ArkTS module: writing a generated PNG into
- * the HarmonyOS album through `photoAccessHelper.createAsset`.
+ * JS side of the app's `ImageSave` module: writing a generated PNG into the
+ * system album (`photoAccessHelper.createAsset` on HarmonyOS, MediaStore on
+ * Android, PHPhotoLibrary on iOS).
  *
  * The module answers with a result object instead of rejecting for the two
  * expected failures (permission denied, asset not writable), because the page
@@ -8,9 +9,9 @@
  * show the reason". A rejection would flatten both into an opaque Error; the
  * structured answer keeps the flow honest.
  *
- * The module only exists on the HarmonyOS build (it needs @ohos APIs). On the
- * other platforms `getTurboModule` returns null and the pages report that the
- * save path is HarmonyOS-only instead of pretending it ran.
+ * A build without the module (for example a platform the app has not been
+ * ported to) gets null from `getTurboModule`, and the pages report that the
+ * save path is unavailable instead of pretending it ran.
  */
 import {getTurboModule} from './turboModule';
 
@@ -31,7 +32,7 @@ type NativeImageSave = {
   saveImage: (base64: string, title: string) => Promise<unknown>;
 };
 
-/** Whether the HarmonyOS save module is registered in this build. */
+/** Whether this platform's save module is registered in this build. */
 export function isImageSaveAvailable(): boolean {
   const module = getTurboModule<NativeImageSave>('ImageSave');
   return module !== null && typeof module.saveImage === 'function';
@@ -41,7 +42,7 @@ function requireModule(): NativeImageSave {
   const module = getTurboModule<NativeImageSave>('ImageSave');
   if (module === null || typeof module.saveImage !== 'function') {
     throw new Error(
-      'ImageSave 模块没有注册（saveImage 不存在）；本实现只接了 HarmonyOS',
+      'ImageSave 模块没有注册（saveImage 不存在）；本平台没有相册写入实现',
     );
   }
   return module;

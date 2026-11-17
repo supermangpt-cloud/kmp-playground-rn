@@ -1,13 +1,13 @@
 /**
- * Direct access to the HarmonyOS image-picker turbo module.
+ * Direct access to the `ImagePicker` native module, shared by all platforms.
  *
- * `react-native-image-picker`'s JS wrapper is not used: it decides between
- * "turbo module" and the legacy `NativeModules` table with
- * `global.__turboModuleProxy != null`, and RN 0.72's `TurboModuleRegistry`
- * checks `NativeModules[name]` *first*. On RNOH the legacy table answers every
- * name with an empty stub, so the wrapper silently ends up with a module that
- * has no `launchImageLibrary` method. Asking the turbo module proxy directly
- * reaches the ArkTS module registered by the package's HarmonyOS adaptation.
+ * Android and iOS use the official `react-native-image-picker` module. Its JS
+ * wrapper is not used because on RNOH it decides between "turbo module" and the
+ * legacy `NativeModules` table with `global.__turboModuleProxy != null`, and
+ * RN 0.72's `TurboModuleRegistry` checks `NativeModules[name]` *first*; RNOH
+ * answers every legacy name with an empty stub, so the wrapper would silently
+ * end up with a module that has no `launchImageLibrary` method. Asking the
+ * module directly works on every platform.
  */
 import {getTurboModule} from './turboModule';
 
@@ -46,7 +46,7 @@ type NativeImagePicker = {
 /**
  * Opens the system photo picker and resolves with the chosen image.
  *
- * Rejects when the HarmonyOS module is not registered, so the page can show
+ * Rejects when the platform's module is not registered, so the page can show
  * the reason instead of a silently empty picker.
  */
 export function launchImageLibrary(

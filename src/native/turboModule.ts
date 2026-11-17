@@ -1,23 +1,19 @@
 /**
- * Direct access to turbo modules registered by the HarmonyOS adaptations.
+ * Access to the JS-facing native modules behind the capability wrappers.
  *
- * RN 0.72's `TurboModuleRegistry` checks the legacy `NativeModules` table
- * before the turbo module proxy, and RNOH answers every name from that table
- * with an empty stub. Asking `global.__turboModuleProxy` directly reaches the
- * ArkTS modules registered by `PackageProvider.ets`.
+ * On Android and iOS both the app's own modules (`CapabilityProbe`,
+ * `ImageSave`, `WifiNetwork`) and the official libraries (async-storage,
+ * clipboard, image picker, ble-plx) are registered in React Native's legacy
+ * `NativeModules` table, so that table is the lookup here.
+ *
+ * HarmonyOS needs a different route: RNOH answers every name in that table
+ * with an empty stub, so `turboModule.harmony.ts` asks `__turboModuleProxy`
+ * directly instead. Metro picks that file for the `harmony` platform; the
+ * wrappers are otherwise unchanged.
  */
-type TurboModuleProxy = (name: string) => unknown;
+import {NativeModules} from 'react-native';
 
 export function getTurboModule<T>(name: string): T | null {
-  const proxy = (global as unknown as {__turboModuleProxy?: TurboModuleProxy})
-    .__turboModuleProxy;
-  if (typeof proxy !== 'function') {
-    return null;
-  }
-  try {
-    const module = proxy(name);
-    return (module as T) ?? null;
-  } catch {
-    return null;
-  }
+  const module = (NativeModules as unknown as Record<string, unknown>)[name];
+  return (module as T | undefined) ?? null;
 }

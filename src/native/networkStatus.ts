@@ -1,9 +1,10 @@
 /**
- * JS side of the app's `CapabilityProbe` ArkTS module for the 网络状态 row.
+ * JS side of the app's `CapabilityProbe` module for the 网络状态 row.
  *
- * The ArkTS method reads `@ohos.net.connection`'s default network and its
- * bearer types afresh on every call, so switching Wi-Fi off and pressing
- * 「查询网络」 again reports the new state instead of a cached one.
+ * The native method reads the platform's current network and its transport
+ * afresh on every call (`@ohos.net.connection`, `ConnectivityManager`, or
+ * `NWPathMonitor`), so switching Wi-Fi off and pressing 「查询网络」 again
+ * reports the new state instead of a cached one.
  *
  * `unknown` is a real answer: a default network whose transport is none of
  * Wi-Fi / cellular / ethernet is reported as 未知 instead of being guessed into
