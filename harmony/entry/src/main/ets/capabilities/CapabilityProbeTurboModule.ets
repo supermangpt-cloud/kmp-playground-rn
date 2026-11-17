@@ -2,6 +2,13 @@ import { TurboModule } from '@rnoh/react-native-openharmony/ts';
 import type { TurboModuleContext } from '@rnoh/react-native-openharmony/ts';
 import { bundleManager, common } from '@kit.AbilityKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
+import { connection } from '@kit.NetworkKit';
+
+/** One reading of the current network: the connected flag and its transport. */
+export interface NetworkStatusPayload {
+  connected: boolean;
+  type: string;
+}
 
 /** The five fields the capability page's 设备信息 row prints. */
 export interface DeviceInfoPayload {
@@ -57,6 +64,42 @@ export class CapabilityProbeTurboModule extends TurboModule {
       systemVersion: systemVersion,
       appName: this.appName(),
       appVersion: bundleInfo.versionName,
+    };
+    return Promise.resolve(payload);
+  }
+
+  /**
+   * The current network state, read from scratch on every call:
+   * `getDefaultNetSync` and the default network's bearer types. Wi-Fi is
+   * checked first, then cellular, then ethernet — the same precedence the KMP
+   * build uses when a network reports more than one transport.
+   *
+   * There is no cached value here on purpose: switching Wi-Fi off and calling
+   * again must return `none`, which the capability page's acceptance check
+   * exercises.
+   */
+  readNetworkStatus(): Promise<NetworkStatusPayload> {
+    const handle = connection.getDefaultNetSync();
+    if (!handle || handle.netId === 0) {
+      const none: NetworkStatusPayload = { connected: false, type: 'none' };
+      return Promise.resolve(none);
+    }
+    const capabilities = connection.getNetCapabilitiesSync(handle);
+    const bearers = capabilities.bearerTypes;
+    // A default network exists, so "connected" is true; a transport none of
+    // the three known bearer types describes is reported as `unknown` rather
+    // than guessed into one of them.
+    let type: string = 'unknown';
+    if (bearers.includes(connection.NetBearType.BEARER_WIFI)) {
+      type = 'wifi';
+    } else if (bearers.includes(connection.NetBearType.BEARER_CELLULAR)) {
+      type = 'cellular';
+    } else if (bearers.includes(connection.NetBearType.BEARER_ETHERNET)) {
+      type = 'ethernet';
+    }
+    const payload: NetworkStatusPayload = {
+      connected: true,
+      type: type,
     };
     return Promise.resolve(payload);
   }

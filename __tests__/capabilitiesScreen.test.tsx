@@ -21,6 +21,7 @@ import {
 } from '../src/native/clipboard';
 import {readDeviceInfo} from '../src/native/deviceInfo';
 import {launchImageLibrary} from '../src/native/imagePicker';
+import {readNetworkStatus} from '../src/native/networkStatus';
 import {decodeImage, isNativeScanAvailable} from '../src/native/scanKit';
 import {openExternalUrl} from '../src/native/urlOpener';
 
@@ -30,6 +31,10 @@ jest.mock('../src/native/imagePicker', () => ({
 
 jest.mock('../src/native/deviceInfo', () => ({
   readDeviceInfo: jest.fn(),
+}));
+
+jest.mock('../src/native/networkStatus', () => ({
+  readNetworkStatus: jest.fn(),
 }));
 
 jest.mock('../src/native/asyncStorage', () => ({
@@ -57,12 +62,14 @@ type MockWith = {
   mockImplementation: (impl: (...args: never[]) => unknown) => void;
   mockResolvedValue: (value: unknown) => void;
   mockResolvedValueOnce: (value: unknown) => void;
+  mockImplementationOnce: (impl: (...args: never[]) => unknown) => MockWith;
   mockReturnValue: (value: unknown) => void;
   mock: {calls: unknown[][]};
 };
 
 const mockLaunch = launchImageLibrary as unknown as MockWith;
 const mockDeviceInfo = readDeviceInfo as unknown as MockWith;
+const mockNetworkStatus = readNetworkStatus as unknown as MockWith;
 const mockNativeAvailable = isNativeScanAvailable as unknown as MockWith;
 const mockDecodeImage = decodeImage as unknown as MockWith;
 const mockOpenUrl = openExternalUrl as unknown as MockWith;
@@ -113,6 +120,9 @@ beforeEach(() => {
       appName: 'KMP RN Demo',
       appVersion: '1.0.0',
     }),
+  );
+  mockNetworkStatus.mockImplementation(() =>
+    Promise.resolve({connected: true, type: 'wifi'}),
   );
   mockNativeAvailable.mockReturnValue(false);
   mockDecodeImage.mockImplementation(() =>
@@ -210,6 +220,7 @@ it('gives every implemented row a button, and no button to the rest', () => {
   ).toEqual([
     'local-storage',
     'device-info',
+    'network-status',
     'url-opener',
     'image-pick',
     'barcode-decode',
@@ -238,6 +249,61 @@ it('prints the real device model, system version and app build for 设备信息'
   expect(
     textOf(tree.root.findByProps({testID: 'capability-result-device-info'})),
   ).toBe('ALN-AL00 · HarmonyOS 7.0.0.111(SP10C00E111R4P3) · KMP RN Demo 1.0.0');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('prints the live network twice: wifi, then none after Wi-Fi is off', async () => {
+  mockNetworkStatus
+    .mockImplementationOnce(() =>
+      Promise.resolve({connected: true, type: 'wifi'}),
+    )
+    .mockImplementationOnce(() =>
+      Promise.resolve({connected: false, type: 'none'}),
+    );
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-network-status'})
+      .props.onPress();
+  });
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-network-status'})),
+  ).toBe('已联网 · wifi');
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-network-status'})
+      .props.onPress();
+  });
+  expect(mockNetworkStatus).toHaveBeenCalledTimes(2);
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-network-status'})),
+  ).toBe('未联网 · none');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('prints an unrecognised network transport as 未知', async () => {
+  mockNetworkStatus.mockImplementation(() =>
+    Promise.resolve({connected: true, type: 'unknown'}),
+  );
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-network-status'})
+      .props.onPress();
+  });
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-network-status'})),
+  ).toBe('已联网 · 未知');
 
   renderer.act(() => {
     tree.unmount();

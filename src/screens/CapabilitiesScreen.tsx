@@ -32,6 +32,7 @@ import {
 } from '../native/clipboard';
 import {readDeviceInfo} from '../native/deviceInfo';
 import {launchImageLibrary} from '../native/imagePicker';
+import {NetworkStatus, readNetworkStatus} from '../native/networkStatus';
 import {decodeImage, isNativeScanAvailable} from '../native/scanKit';
 import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
 import {decodeQrFromBase64} from '../qr/imageDecode';
@@ -68,6 +69,13 @@ function statusLabel(capability: Capability): string {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** How the 网络状态 row prints one reading; `unknown` is not guessed. */
+function networkText(status: NetworkStatus): string {
+  const connection = status.connected ? '已联网' : '未联网';
+  const type = status.type === 'unknown' ? '未知' : status.type;
+  return `${connection} · ${type}`;
 }
 
 export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
@@ -123,6 +131,29 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
           kind: 'done',
           text: `${info.model} · ${info.systemName} ${info.systemVersion} · ${info.appName} ${info.appVersion}`,
         });
+      } catch (error) {
+        setOutcome(id, {
+          kind: 'error',
+          text: `读取失败：${messageOf(error)}`,
+        });
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
+
+  /** 「查询网络」: a fresh read on every press, so a changed network shows. */
+  const probeNetwork = useCallback(
+    async (id: string) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      setOutcome(id, {kind: 'busy'});
+      try {
+        const status = await readNetworkStatus();
+        setOutcome(id, {kind: 'done', text: networkText(status)});
       } catch (error) {
         setOutcome(id, {
           kind: 'error',
@@ -350,6 +381,9 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         case 'device-info':
           readDevice(capability.id);
           return;
+        case 'network-status':
+          probeNetwork(capability.id);
+          return;
         case 'pick-image':
           pickImage(capability.id);
           return;
@@ -363,6 +397,7 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
       decodePickedImage,
       openLink,
       pickImage,
+      probeNetwork,
       readDevice,
       storageRoundTrip,
     ],

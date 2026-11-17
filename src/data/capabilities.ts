@@ -33,7 +33,8 @@ export type CapabilityAction =
   | 'local-storage'
   | 'open-url'
   | 'clipboard'
-  | 'device-info';
+  | 'device-info'
+  | 'network-status';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -77,7 +78,9 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'network-status',
     title: '网络状态',
     detail: '是否联网 + 连接类型（wifi/cellular/ethernet）',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'network-status',
+    actionLabel: '查询网络',
   },
   {
     id: 'haptics',

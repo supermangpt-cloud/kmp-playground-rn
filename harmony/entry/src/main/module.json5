@@ -15,6 +15,13 @@
         "name": "ohos.permission.INTERNET"
       },
       {
+        // The platform-capability page's 网络状态 row reads the default network
+        // and its bearer types through @ohos.net.connection. GET_NETWORK_INFO is
+        // a normal-level system_grant permission, so the app holds it on install
+        // and no runtime dialog is involved.
+        "name": "ohos.permission.GET_NETWORK_INFO"
+      },
+      {
         // The self-drawn scan page (`pages/ScanPage`) previews the back camera
         // through Scan Kit's customScan. CAMERA is a user_grant permission, so
         // the page asks at runtime and the reason string is shown in the
