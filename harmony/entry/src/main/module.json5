@@ -61,6 +61,70 @@
         }
       },
       {
+        // The platform-capability page's 震动 / 触觉 row starts a short
+        // vibration through @ohos.vibrator. VIBRATE is a normal-level
+        // system_grant permission, so it is held on install and produces no
+        // runtime dialog.
+        "name": "ohos.permission.VIBRATE"
+      },
+      {
+        // The 动态权限 card's microphone row. It is a user_grant permission,
+        // so the row's 申请 button is what shows the system dialog; the reason
+        // appears in it.
+        "name": "ohos.permission.MICROPHONE",
+        "reason": "$string:microphone_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        // The 动态权限 card's location row asks for both accuracy levels (the
+        // user may grant only the approximate one).
+        "name": "ohos.permission.LOCATION",
+        "reason": "$string:location_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.APPROXIMATELY_LOCATION",
+        "reason": "$string:location_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        // The 动态权限 card's calendar row.
+        "name": "ohos.permission.READ_CALENDAR",
+        "reason": "$string:calendar_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        // The 动态权限 card's Bluetooth row.
+        "name": "ohos.permission.ACCESS_BLUETOOTH",
+        "reason": "$string:bluetooth_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
         // RNOH's dev menu registers a shake detector (debug builds) on the
         // accelerometer; without this normal-level permission it logs an error
         // and shake-to-open-dev-menu stays disabled. It is unrelated to the

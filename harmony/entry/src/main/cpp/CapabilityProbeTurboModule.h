@@ -15,9 +15,10 @@ namespace rnoh {
  * `ARK_ASYNC_METHOD_METADATA` describes.
  *
  * `readDeviceInfo` takes no argument, `readNetworkStatus` reads the current
- * state on every call, and `readDirectories` takes the boolean that says
- * whether the explicit 刷新 press may ask for the two public-directory
- * permissions.
+ * state on every call, `readDirectories` takes the boolean that says whether
+ * the explicit 刷新 press may ask for the two public-directory permissions,
+ * `vibrateHaptic` takes the strength, `shareText` takes the text, and the three
+ * permission methods take the permission id.
  */
 class CapabilityProbeTurboModule : public ArkTSTurboModule {
  public:
@@ -29,6 +30,11 @@ class CapabilityProbeTurboModule : public ArkTSTurboModule {
         ARK_ASYNC_METHOD_METADATA(readDeviceInfo, 0),
         ARK_ASYNC_METHOD_METADATA(readNetworkStatus, 0),
         ARK_ASYNC_METHOD_METADATA(readDirectories, 1),
+        ARK_ASYNC_METHOD_METADATA(vibrateHaptic, 1),
+        ARK_ASYNC_METHOD_METADATA(shareText, 1),
+        ARK_ASYNC_METHOD_METADATA(readPermissionState, 1),
+        ARK_ASYNC_METHOD_METADATA(requestPermission, 1),
+        ARK_ASYNC_METHOD_METADATA(openPermissionSettings, 1),
     };
   }
 };

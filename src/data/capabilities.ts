@@ -15,12 +15,13 @@
  * instead of offering a button that does nothing: `unimplemented` rows print
  * `RN 版本暂未实现`.
  *
- * Seven rows are `available` now: local storage, the storage-directory card,
- * device information, network status, URL opening and the two image rows. The
- * clipboard is `limited`: writing works, but HarmonyOS only grants clipboard
- * reads to the system PasteButton. The directory card is interactive rather
- * than a single button (`action: 'directories'`), which the screen renders as
- * its own body.
+ * Ten rows are `available` now: local storage, the storage-directory card,
+ * device information, network status, haptics, system share, URL opening, the
+ * dynamic-permission card and the two image rows. The clipboard is `limited`:
+ * writing works, but HarmonyOS only grants clipboard reads to the system
+ * PasteButton. Three rows are interactive rather than a single button
+ * (`directories`, `haptics`, `permissions`), which the screen renders as their
+ * own bodies.
  *
  * In particular 保存图片到相册 is `unimplemented`: the QR page has a 保存到相册
  * button, but that button only explains why the RN stack cannot write to the
@@ -38,7 +39,10 @@ export type CapabilityAction =
   | 'clipboard'
   | 'device-info'
   | 'network-status'
-  | 'directories';
+  | 'directories'
+  | 'haptics'
+  | 'system-share'
+  | 'permissions';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -91,13 +95,16 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'haptics',
     title: '震动 / 触觉',
     detail: '轻 / 中 / 重三档',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'haptics',
   },
   {
     id: 'system-share',
     title: '系统分享',
     detail: '分享一段文本',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'system-share',
+    actionLabel: '分享文本',
   },
   {
     id: 'url-opener',
@@ -121,7 +128,8 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'camera-permission',
     title: '动态权限',
     detail: '8 个常用权限，每行可查询、申请，拒绝后有兜底',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'permissions',
   },
   {
     id: 'bluetooth-le',

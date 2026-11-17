@@ -20,9 +20,17 @@ import {
   setString as writeClipboard,
 } from '../src/native/clipboard';
 import {readDeviceInfo} from '../src/native/deviceInfo';
+import {vibrate} from '../src/native/haptics';
 import {launchImageLibrary} from '../src/native/imagePicker';
 import {readNetworkStatus} from '../src/native/networkStatus';
+import {
+  openPermissionSettings,
+  PERMISSIONS,
+  readPermissionState,
+  requestPermission,
+} from '../src/native/permissions';
 import {readDirectories} from '../src/native/storageDirectories';
+import {SHARE_DEMO_TEXT, shareText} from '../src/native/systemShare';
 import {decodeImage, isNativeScanAvailable} from '../src/native/scanKit';
 import {openExternalUrl} from '../src/native/urlOpener';
 
@@ -33,6 +41,29 @@ jest.mock('../src/native/imagePicker', () => ({
 jest.mock('../src/native/deviceInfo', () => ({
   readDeviceInfo: jest.fn(),
 }));
+
+jest.mock('../src/native/haptics', () => ({
+  vibrate: jest.fn(),
+}));
+
+jest.mock('../src/native/systemShare', () => {
+  const actual = jest.requireActual(
+    '../src/native/systemShare',
+  ) as typeof import('../src/native/systemShare');
+  return {...actual, shareText: jest.fn()};
+});
+
+jest.mock('../src/native/permissions', () => {
+  const actual = jest.requireActual(
+    '../src/native/permissions',
+  ) as typeof import('../src/native/permissions');
+  return {
+    ...actual,
+    openPermissionSettings: jest.fn(),
+    readPermissionState: jest.fn(),
+    requestPermission: jest.fn(),
+  };
+});
 
 jest.mock('../src/native/networkStatus', () => ({
   readNetworkStatus: jest.fn(),
@@ -79,6 +110,12 @@ const mockReadDirectories = readDirectories as unknown as MockWith;
 const mockNativeAvailable = isNativeScanAvailable as unknown as MockWith;
 const mockDecodeImage = decodeImage as unknown as MockWith;
 const mockOpenUrl = openExternalUrl as unknown as MockWith;
+const mockVibrate = vibrate as unknown as MockWith;
+const mockShareText = shareText as unknown as MockWith;
+const mockReadPermissionState = readPermissionState as unknown as MockWith;
+const mockRequestPermission = requestPermission as unknown as MockWith;
+const mockOpenPermissionSettings =
+  openPermissionSettings as unknown as MockWith;
 const mockGetItem = getItem as unknown as MockWith;
 const mockSetItem = setItem as unknown as MockWith;
 const mockRemoveItem = removeItem as unknown as MockWith;
@@ -188,6 +225,15 @@ beforeEach(() => {
   mockRemoveItem.mockImplementation(() => Promise.resolve(undefined));
   mockClipboardSet.mockImplementation(() => undefined);
   mockClipboardGet.mockImplementation(() => Promise.resolve(''));
+  mockVibrate.mockImplementation(() => Promise.resolve({fired: true}));
+  mockShareText.mockImplementation(() => Promise.resolve(undefined));
+  mockReadPermissionState.mockImplementation(() =>
+    Promise.resolve('notDetermined'),
+  );
+  mockRequestPermission.mockImplementation(() => Promise.resolve('granted'));
+  mockOpenPermissionSettings.mockImplementation(() =>
+    Promise.resolve(undefined),
+  );
 });
 
 it('renders the 14 KMP capabilities in the KMP page order', async () => {
@@ -257,6 +303,34 @@ it('gives every implemented row a button, and no button to the rest', async () =
       continue;
     }
 
+    if (capability.id === 'haptics') {
+      expect(status).toBe('可用');
+      // Three strength buttons in a row, and no separate query button.
+      expect(buttons).toHaveLength(0);
+      expect(notes).toHaveLength(0);
+      for (const strength of ['light', 'medium', 'heavy']) {
+        expect(
+          tree.root
+            .findAllByProps({testID: `capability-haptic-${strength}`})
+            .filter(isHost),
+        ).toHaveLength(1);
+      }
+      continue;
+    }
+
+    if (capability.id === 'camera-permission') {
+      expect(status).toBe('可用');
+      // The permission card draws its own 查询 / 申请 / 去设置 per row.
+      expect(buttons).toHaveLength(0);
+      expect(notes).toHaveLength(0);
+      expect(
+        tree.root
+          .findAllByProps({testID: 'capability-permission-note'})
+          .filter(isHost),
+      ).toHaveLength(1);
+      continue;
+    }
+
     if (capability.status === 'unimplemented') {
       expect(status).toBe('未实现');
       // No button that could be pressed and do nothing.
@@ -288,7 +362,10 @@ it('gives every implemented row a button, and no button to the rest', async () =
     'directories',
     'device-info',
     'network-status',
+    'haptics',
+    'system-share',
     'url-opener',
+    'camera-permission',
     'image-pick',
     'barcode-decode',
   ]);
@@ -703,6 +780,270 @@ it('shows the guard reason when a URL is refused', async () => {
   expect(
     textOf(tree.root.findByProps({testID: 'capability-result-url-opener'})),
   ).toBe('只允许打开 http/https 链接：tuitui://demo');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('offers the three haptic strengths and prints the fallback note', async () => {
+  mockVibrate.mockImplementation(() =>
+    Promise.resolve({
+      fired: true,
+      note: '物理反馈被系统触感开关忽略，已用通知场景振动代替',
+    }),
+  );
+  const tree = await render();
+
+  // Nothing happens until a strength is pressed: no separate query button.
+  expect(mockVibrate).not.toHaveBeenCalled();
+
+  await renderer.act(async () => {
+    tree.root.findByProps({testID: 'capability-haptic-light'}).props.onPress();
+  });
+
+  expect(mockVibrate).toHaveBeenCalledWith('light');
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-haptics'})),
+  ).toBe('已触发轻震动（物理反馈被系统触感开关忽略，已用通知场景振动代替）');
+
+  await renderer.act(async () => {
+    tree.root.findByProps({testID: 'capability-haptic-heavy'}).props.onPress();
+  });
+  expect(mockVibrate).toHaveBeenLastCalledWith('heavy');
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-haptics'})),
+  ).toContain('已触发重震动');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('explains why a haptic tap failed instead of showing a silent no-op', async () => {
+  mockVibrate.mockImplementation(() =>
+    Promise.reject(new Error('该设备没有振动马达，无法触发震动')),
+  );
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root.findByProps({testID: 'capability-haptic-medium'}).props.onPress();
+  });
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-haptics'})),
+  ).toBe('失败：该设备没有振动马达，无法触发震动');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('opens the system share panel for 系统分享', async () => {
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-system-share'})
+      .props.onPress();
+  });
+
+  expect(mockShareText).toHaveBeenCalledWith(SHARE_DEMO_TEXT);
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-system-share'})),
+  ).toBe(`已拉起系统分享面板（内容：${SHARE_DEMO_TEXT}）`);
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('prints a share failure instead of claiming the panel opened', async () => {
+  mockShareText.mockImplementation(() =>
+    Promise.reject(
+      new Error(
+        '当前设备不支持系统分享（SystemCapability.Collaboration.SystemShare 不可用）',
+      ),
+    ),
+  );
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-system-share'})
+      .props.onPress();
+  });
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-system-share'})),
+  ).toContain('当前设备不支持系统分享');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('lists the eight permissions with the platform note and ACL rows', async () => {
+  const tree = await render();
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-permission-note'})),
+  ).toContain('鸿蒙没有「永久拒绝」状态');
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-permission-note'})),
+  ).toContain('system_basic');
+
+  const rows = tree.root.findAll(
+    node =>
+      isHost(node) &&
+      typeof node.props.testID === 'string' &&
+      node.props.testID.startsWith('capability-permission-') &&
+      !node.props.testID.startsWith('capability-permission-state-') &&
+      !node.props.testID.startsWith('capability-permission-query-') &&
+      !node.props.testID.startsWith('capability-permission-request-') &&
+      !node.props.testID.startsWith('capability-permission-settings-') &&
+      !node.props.testID.startsWith('capability-permission-advice-') &&
+      !node.props.testID.startsWith('capability-permission-result-') &&
+      !node.props.testID.startsWith('capability-permission-unavailable-') &&
+      node.props.testID !== 'capability-permission-note',
+  );
+  expect(rows.map(row => row.props.testID)).toEqual(
+    PERMISSIONS.map(permission => `capability-permission-${permission.id}`),
+  );
+
+  for (const permission of PERMISSIONS) {
+    if (permission.unavailableReason !== undefined) {
+      continue;
+    }
+    expect(
+      textOf(
+        tree.root.findByProps({
+          testID: `capability-permission-state-${permission.id}`,
+        }),
+      ),
+    ).toBe('未查询');
+  }
+
+  // The ACL rows explain themselves and offer no button that cannot work.
+  for (const id of ['photo_library', 'contacts']) {
+    expect(
+      textOf(
+        tree.root.findByProps({
+          testID: `capability-permission-unavailable-${id}`,
+        }),
+      ),
+    ).toContain('ACL 受限权限');
+    expect(
+      tree.root
+        .findAllByProps({testID: `capability-permission-query-${id}`})
+        .filter(isHost),
+    ).toHaveLength(0);
+    expect(
+      tree.root
+        .findAllByProps({testID: `capability-permission-request-${id}`})
+        .filter(isHost),
+    ).toHaveLength(0);
+  }
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('queries one permission and shows the real state', async () => {
+  mockReadPermissionState.mockImplementation(() => Promise.resolve('granted'));
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-permission-query-camera'})
+      .props.onPress();
+  });
+
+  expect(mockReadPermissionState).toHaveBeenCalledWith('camera');
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-permission-state-camera'}),
+    ),
+  ).toBe('已授权');
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-permission-advice-camera'}),
+    ),
+  ).toBe('已授权，可以直接使用');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('turns a denied permission into a 去设置 row instead of a dead end', async () => {
+  mockRequestPermission.mockImplementation(() => Promise.resolve('denied'));
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-permission-request-camera'})
+      .props.onPress();
+  });
+
+  expect(mockRequestPermission).toHaveBeenCalledWith('camera');
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-permission-state-camera'}),
+    ),
+  ).toBe('已拒绝');
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-permission-advice-camera'}),
+    ),
+  ).toContain('去设置');
+
+  const settings = tree.root.findAllByProps({
+    testID: 'capability-permission-settings-camera',
+  });
+  expect(settings.length).toBeGreaterThan(0);
+  expect(
+    tree.root
+      .findAllByProps({testID: 'capability-permission-settings-camera'})
+      .filter(isHost),
+  ).toHaveLength(1);
+
+  await renderer.act(async () => {
+    settings[0].props.onPress();
+  });
+
+  expect(mockOpenPermissionSettings).toHaveBeenCalledWith('camera');
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-permission-result-camera'}),
+    ),
+  ).toBe('已打开系统设置页；回到 App 后点「查询」刷新状态');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('reports a permission request failure with the platform reason', async () => {
+  mockRequestPermission.mockImplementation(() =>
+    Promise.reject(
+      new Error('权限申请返回了 2（权限是否已在 module.json5 声明？）'),
+    ),
+  );
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-permission-request-calendar'})
+      .props.onPress();
+  });
+
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-permission-result-calendar'}),
+    ),
+  ).toBe('申请失败：权限申请返回了 2（权限是否已在 module.json5 声明？）');
 
   renderer.act(() => {
     tree.unmount();

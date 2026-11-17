@@ -1,9 +1,13 @@
 import { TurboModule } from '@rnoh/react-native-openharmony/ts';
 import type { TurboModuleContext } from '@rnoh/react-native-openharmony/ts';
 import { abilityAccessCtrl, bundleManager, common, Permissions } from '@kit.AbilityKit';
+import { preferences } from '@kit.ArkData';
 import { Environment, fileIo as fs } from '@kit.CoreFileKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { connection } from '@kit.NetworkKit';
+import { notificationManager } from '@kit.NotificationKit';
+import { systemShare } from '@kit.ShareKit';
+import { vibrator } from '@kit.SensorServiceKit';
 
 /** One row of the 存储目录 card, as this app reads it on HarmonyOS. */
 export interface DirectoryPayload {
@@ -38,15 +42,41 @@ export interface DeviceInfoPayload {
 }
 
 /**
+ * The result of one haptic tap.
+ *
+ * `note` is non-empty only when the request could not be delivered through the
+ * normal path and had to fall back, which the row prints so a disabled system
+ * switch is never mistaken for a broken button.
+ */
+export interface HapticPayload {
+  fired: boolean;
+  note: string;
+}
+
+/** The user_grant permissions behind the four real permission rows. */
+const CAMERA_PERMISSION: Permissions = 'ohos.permission.CAMERA';
+const MICROPHONE_PERMISSION: Permissions = 'ohos.permission.MICROPHONE';
+const LOCATION_PERMISSION: Permissions = 'ohos.permission.LOCATION';
+const APPROXIMATELY_LOCATION_PERMISSION: Permissions =
+  'ohos.permission.APPROXIMATELY_LOCATION';
+const READ_CALENDAR_PERMISSION: Permissions = 'ohos.permission.READ_CALENDAR';
+const ACCESS_BLUETOOTH_PERMISSION: Permissions =
+  'ohos.permission.ACCESS_BLUETOOTH';
+
+/** Preference store that remembers which permissions were already asked for. */
+const PERMISSION_STORE_NAME = 'platform_capabilities';
+const REQUESTED_KEY_PREFIX = 'permission_requested_';
+
+/**
  * The app's own ArkTS side of the platform-capability page.
  *
- * The three capabilities this module backs (device information, network status
- * and the storage directories) all need `@ohos.*` APIs that no React Native JS
- * module can reach on this device, so the readings live here and the JS side
- * only formats what came back. The implementations follow the KMP build's
- * already-verified ArkTS capabilities
+ * The capabilities this module backs (device information, network status, the
+ * storage directories, haptics, system share and the dynamic permissions) all
+ * need `@ohos.*` APIs that no React Native JS module can reach on this device,
+ * so the calls live here and the JS side only formats what came back. The
+ * implementations follow the KMP build's already-verified ArkTS capabilities
  * (`harmonyApp/entry/src/main/ets/capabilities`), which is why the directory
- * notes and the 801 handling match it.
+ * notes, the haptics fallback and the permission semantics match it.
  *
  * Every method is asynchronous from JS's point of view: the C++ side registers
  * them with `ARK_ASYNC_METHOD_METADATA`, so returning a resolved promise is the
@@ -54,6 +84,8 @@ export interface DeviceInfoPayload {
  */
 export class CapabilityProbeTurboModule extends TurboModule {
   private context: common.UIAbilityContext;
+  /** Lazily opened store for the "we already asked" flags. */
+  private permissionStore: preferences.Preferences | null = null;
 
   constructor(ctx: TurboModuleContext) {
     super(ctx);
@@ -219,6 +251,294 @@ export class CapabilityProbeTurboModule extends TurboModule {
       }
       return this.record(kind, '', `读取公共${label}失败：${code} ${message}`);
     }
+  }
+
+  /**
+   * One haptic tap of `strength` (light / medium / heavy).
+   *
+   * Two things decide whether a vibration is actually felt, and both are made
+   * explicit here instead of being guessed at:
+   *
+   * 1. **A motor has to exist.** `getVibratorInfoSync()` answers that; without
+   *    one, the call rejects with a sentence the row prints, rather than a
+   *    silent no-op.
+   *
+   * 2. **`usage` picks which system switch governs the call.** `physicalFeedback`
+   *    is the honest choice for a touch interaction, but it is gated by the
+   *    touch-feedback switch. When that switch is off the system drops the call
+   *    (logs `ShouldIgnoreVibrate`, error 14600101), so the tap is retried once
+   *    as `notification` (gated by the silent switch) and the returned note says
+   *    so. If the retry is dropped too, the promise rejects with the platform's
+   *    code so the row can explain why nothing was felt.
+   */
+  async vibrateHaptic(strength: string): Promise<HapticPayload> {
+    const effect = this.vibrationEffect(strength);
+    this.requireVibrator();
+    try {
+      await vibrator.startVibration(effect, {
+        id: 0,
+        usage: 'physicalFeedback',
+      });
+      return { fired: true, note: '' };
+    } catch (error) {
+      const physical = error as BusinessError;
+      try {
+        await vibrator.startVibration(effect, {
+          id: 0,
+          usage: 'notification',
+        });
+        return {
+          fired: true,
+          note: '物理反馈被系统触感开关忽略，已用通知场景振动代替',
+        };
+      } catch (fallbackError) {
+        const fallback = fallbackError as BusinessError;
+        throw new Error(
+          `震动被系统忽略（触感开关或静音开关关闭？）：` +
+            `physicalFeedback ${physical.code} ${physical.message}；` +
+            `notification ${fallback.code} ${fallback.message}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Opens the system share panel with `text` (ShareKit's `SystemShare`).
+   *
+   * The promise resolves once the panel was presented; it does not wait for the
+   * user to pick a target, because HarmonyOS does not report that back — the
+   * same meaning the KMP build gives its `Ok`.
+   */
+  async shareText(text: string): Promise<void> {
+    if (!canIUse('SystemCapability.Collaboration.SystemShare')) {
+      throw new Error(
+        '当前设备不支持系统分享（SystemCapability.Collaboration.SystemShare 不可用）',
+      );
+    }
+    const data = new systemShare.SharedData({
+      utd: 'general.plain-text',
+      content: text,
+      title: text,
+    });
+    const controller = new systemShare.ShareController(data);
+    await controller.show(this.context, {
+      previewMode: systemShare.SharePreviewMode.DETAIL,
+      selectionMode: systemShare.SelectionMode.SINGLE,
+    });
+  }
+
+  /**
+   * Reads one permission without showing a dialog.
+   *
+   * HarmonyOS answers `checkAccessTokenSync` (granted / not) but has no
+   * "never asked" state. This class records every request in the app's
+   * preferences before the dialog opens, so the answer here can distinguish
+   * `notDetermined` (never asked) from `denied` (asked, refused).
+   * Notifications are not a permission here: they use the notification manager.
+   */
+  async readPermissionState(permission: string): Promise<string> {
+    if (permission === 'notifications') {
+      return this.notificationState();
+    }
+    const names = this.permissionNames(permission);
+    if (this.isGranted(permission, names)) {
+      return 'granted';
+    }
+    return this.store().getSync(this.requestedKey(permission), '') === '1'
+      ? 'denied'
+      : 'notDetermined';
+  }
+
+  /**
+   * Shows the system dialog for `permission` and returns the resulting state.
+   *
+   * `authResults` is 0 for granted and -1 for denied; any other code means the
+   * request itself was invalid (for example the permission is missing from
+   * `module.json5`), which rejects with the code instead of pretending the user
+   * said no.
+   */
+  async requestPermission(permission: string): Promise<string> {
+    if (permission === 'notifications') {
+      return this.requestNotification();
+    }
+    const names = this.permissionNames(permission);
+    const store = this.store();
+    // Recorded before the dialog opens: after a denial HarmonyOS cannot tell
+    // "not asked" from "denied" on its own.
+    store.putSync(this.requestedKey(permission), '1');
+    await store.flush();
+    const manager = abilityAccessCtrl.createAtManager();
+    try {
+      const result = await manager.requestPermissionsFromUser(
+        this.context,
+        names,
+      );
+      return this.answer(permission, result.authResults);
+    } catch (error) {
+      const failure = error as BusinessError;
+      throw new Error(`申请权限失败：${failure.code} ${failure.message}`);
+    }
+  }
+
+  /**
+   * Opens the system page where `permission` can be changed.
+   *
+   * After a denial HarmonyOS does not show its first-run dialog again, so this
+   * is the documented second step: `requestPermissionOnSetting` opens the
+   * permission settings dialog for a normal permission, and notifications use
+   * the notification settings page.
+   */
+  async openPermissionSettings(permission: string): Promise<void> {
+    if (permission === 'notifications') {
+      await notificationManager.openNotificationSettings(this.context);
+      return;
+    }
+    const names = this.permissionNames(permission);
+    const manager = abilityAccessCtrl.createAtManager();
+    try {
+      await manager.requestPermissionOnSetting(this.context, names);
+    } catch (error) {
+      const failure = error as BusinessError;
+      throw new Error(`打开权限设置失败：${failure.code} ${failure.message}`);
+    }
+  }
+
+  /** The time effect behind one strength; an unknown strength is a caller bug. */
+  private vibrationEffect(strength: string): vibrator.VibrateTime {
+    switch (strength) {
+      case 'light':
+        return { type: 'time', duration: 15 };
+      case 'medium':
+        return { type: 'time', duration: 40 };
+      case 'heavy':
+        return { type: 'time', duration: 80 };
+      default:
+        throw new Error(`未知的震动档位：${strength}`);
+    }
+  }
+
+  /**
+   * Rejects when the device reports no motor. `getVibratorInfoSync` is API 19+;
+   * 202 / 801 means the query is not available on this build, so a motor is
+   * assumed rather than hiding the capability on an older device.
+   */
+  private requireVibrator(): void {
+    try {
+      const motors = vibrator.getVibratorInfoSync();
+      if (motors.length === 0) {
+        throw new Error('该设备没有振动马达，无法触发震动');
+      }
+    } catch (error) {
+      const failure = error as BusinessError;
+      if (failure.code === 202 || failure.code === 801) {
+        return;
+      }
+      if (error instanceof Error && failure.code === undefined) {
+        throw error;
+      }
+      throw new Error(
+        `无法确认振动马达：${failure.code} ${failure.message ?? `${error}`}`,
+      );
+    }
+  }
+
+  /** `granted` / `denied` / `notDetermined`, with notifications handled apart. */
+  private notificationState(): string {
+    if (notificationManager.isNotificationEnabledSync()) {
+      return 'granted';
+    }
+    return this.store().getSync(
+      this.requestedKey('notifications'),
+      '',
+    ) === '1'
+      ? 'denied'
+      : 'notDetermined';
+  }
+
+  /** Asks for notification enablement; the switch's real state is the answer. */
+  private async requestNotification(): Promise<string> {
+    const store = this.store();
+    store.putSync(this.requestedKey('notifications'), '1');
+    await store.flush();
+    try {
+      await notificationManager.requestEnableNotification(this.context);
+    } catch (error) {
+      // 1600004 means the system did not show its dialog; the switch below is
+      // the honest answer either way.
+      const failure = error as BusinessError;
+      console.info(
+        `requestEnableNotification: ${failure.code} ${failure.message}`,
+      );
+    }
+    return notificationManager.isNotificationEnabledSync()
+      ? 'granted'
+      : 'denied';
+  }
+
+  /** The OS permissions one row needs; location needs both accuracy levels. */
+  private permissionNames(permission: string): Permissions[] {
+    switch (permission) {
+      case 'camera':
+        return [CAMERA_PERMISSION];
+      case 'microphone':
+        return [MICROPHONE_PERMISSION];
+      case 'location':
+        return [LOCATION_PERMISSION, APPROXIMATELY_LOCATION_PERMISSION];
+      case 'calendar':
+        return [READ_CALENDAR_PERMISSION];
+      case 'bluetooth':
+        return [ACCESS_BLUETOOTH_PERMISSION];
+      default:
+        throw new Error(`未知或不可申请的权限：${permission}`);
+    }
+  }
+
+  /**
+   * Location is usable when either accuracy level is granted (the user may pick
+   * approximate); every other row needs all of its permissions.
+   */
+  private isGranted(permission: string, names: Permissions[]): boolean {
+    const manager = abilityAccessCtrl.createAtManager();
+    const tokenId = this.context.applicationInfo.accessTokenId;
+    const check = (name: Permissions): boolean =>
+      manager.checkAccessTokenSync(tokenId, name) ===
+      abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+    return permission === 'location' ? names.some(check) : names.every(check);
+  }
+
+  /** Turns `authResults` into one state, rejecting an invalid request code. */
+  private answer(permission: string, results: number[]): string {
+    if (results.length === 0) {
+      throw new Error('权限申请没有返回结果');
+    }
+    const invalid = results.find(
+      (code: number): boolean => code !== 0 && code !== -1,
+    );
+    if (invalid !== undefined) {
+      throw new Error(
+        `权限申请返回了 ${invalid}（权限是否已在 module.json5 声明？）`,
+      );
+    }
+    if (permission === 'location') {
+      return results.some((code: number): boolean => code === 0)
+        ? 'granted'
+        : 'denied';
+    }
+    return results[0] === 0 ? 'granted' : 'denied';
+  }
+
+  /** The lazily opened preferences store. */
+  private store(): preferences.Preferences {
+    if (this.permissionStore === null) {
+      this.permissionStore = preferences.getPreferencesSync(this.context, {
+        name: PERMISSION_STORE_NAME,
+      });
+    }
+    return this.permissionStore;
+  }
+
+  private requestedKey(permission: string): string {
+    return `${REQUESTED_KEY_PREFIX}${permission}`;
   }
 
   /**

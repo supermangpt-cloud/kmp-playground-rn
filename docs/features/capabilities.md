@@ -1,13 +1,13 @@
 # 平台能力页
 
-能力页从骨架推进到两批真实能力。14 行的名称、说明、顺序仍与 KMP 版
+能力页从骨架推进到三批真实能力。14 行的名称、说明、顺序仍与 KMP 版
 （`CapabilitiesScreen.kt` 真机 dump）一致；页面结构也还是 KMP 的
 `名称 + 说明 + 右上状态 + 下方操作按钮 + 行内结果`：
 
-- **可用**（7 行）：本地存储、存储目录、设备信息、网络状态、打开外部链接、
-  从相册选图、图片解析二维码。
+- **可用**（10 行）：本地存储、存储目录、设备信息、网络状态、震动/触觉、
+  系统分享、打开外部链接、动态权限、从相册选图、图片解析二维码。
 - **部分可用**（1 行）：剪贴板。写入可用，读取被鸿蒙的系统权限限制，行内写明原因。
-- **未实现**（6 行）：其余能力继续显示「未实现」，没有按钮。
+- **未实现**（3 行）：蓝牙 LE、WiFi、保存图片到相册，继续显示「未实现」，没有按钮。
 
 首屏、购物车、扫码页的现有对齐没有改动。
 
@@ -23,13 +23,16 @@
 | `src/native/deviceInfo.ts` | `CapabilityProbe` 的 `readDeviceInfo` 封装与返回校验 |
 | `src/native/networkStatus.ts` | `CapabilityProbe` 的 `readNetworkStatus` 封装；`unknown` 不猜成某类 |
 | `src/native/storageDirectories.ts` | `CapabilityProbe` 的 `readDirectories` 封装 + 7 行的静态 note 映射 |
+| `src/native/haptics.ts` | `CapabilityProbe` 的 `vibrateHaptic` 封装（返回回退说明） |
+| `src/native/systemShare.ts` | `CapabilityProbe` 的 `shareText` 封装 + 分享文本 |
+| `src/native/permissions.ts` | 8 个权限的定义、四态文案、`CapabilityProbe` 的三个权限方法封装 |
 | `src/data/directories.ts` | 7 个目录的中文标签（与 KMP 的 `DirectoryKind.label` 一致） |
 | `harmony/entry/oh-package.json5` | 新增 async-storage、clipboard 两个 har 依赖（前一批） |
 | `harmony/entry/src/main/cpp/PackageProvider.cpp` | 注册两个包的 C++ method map（CAPI 架构） |
 | `harmony/entry/src/main/ets/PackageProvider.ets` | 注册两个包的 ArkTS turbo module，以及本单的 `CapabilityProbePackage` |
-| `harmony/entry/src/main/ets/capabilities/CapabilityProbeTurboModule.ets` | `@ohos.deviceInfo` / `@ohos.net.connection` / `Context` + `@ohos.file.fs` 的真实读取 |
-| `harmony/entry/src/main/cpp/CapabilityProbeTurboModule.h` | `CapabilityProbe` 三个 Promise 方法的 C++ method map |
-| `harmony/entry/src/main/module.json5` | 新增 `GET_NETWORK_INFO` 和两个公共目录的 user_grant 权限 |
+| `harmony/entry/src/main/ets/capabilities/CapabilityProbeTurboModule.ets` | `@ohos.deviceInfo` / `@ohos.net.connection` / `Context` + `@ohos.file.fs` 的真实读取，以及 `@ohos.vibrator`、ShareKit、`@ohos.abilityAccessCtrl` 的调用 |
+| `harmony/entry/src/main/cpp/CapabilityProbeTurboModule.h` | `CapabilityProbe` 八个 Promise 方法的 C++ method map |
+| `harmony/entry/src/main/module.json5` | `GET_NETWORK_INFO`、两个公共目录、`VIBRATE` 和四个动态权限的声明 |
 
 ## 状态规则
 
@@ -209,7 +212,111 @@ C++ method map，JS 侧通过 `src/native/turboModule.ts` 的 proxy 取模块。
     是设备信息与网络状态（联网/断网）；`after-directories-top.png` /
     `after-directories-copied.png` / `after-directories-bottom.png` 是目录卡。
 
-## 与 KMP 版的三处有意差异
+## 第三批三项能力（震动 / 系统分享 / 动态权限）
+
+本批把 `震动 / 触觉`、`系统分享`、`动态权限` 三行从「未实现」变成真实调用。三项都走
+App 自己的 ArkTS `CapabilityProbe` 模块（与第二批同一通路），没有再引入新的 npm/har
+依赖；原因见本节末尾「为什么没有直接用 issue 列的三个 RN 适配包」。
+
+### 7. 震动 / 触觉（`haptics`）
+
+- 三个按钮横排（轻 / 中 / 重），没有单独的查询按钮，与 KMP 真机 dump 一致。
+- ArkTS 侧 `vibrateHaptic(strength)`：
+  1. `getVibratorInfoSync()` 查马达；没有马达 → reject
+     `该设备没有振动马达，无法触发震动`，页面显示原因而不是静默。
+  2. 三档是 15 / 40 / 80 ms 的 `VibrateTime`，先 `usage: 'physicalFeedback'`。
+  3. 被系统开关忽略时（页面实测错误码 `14600101`，hilog
+     `ShouldIgnoreVibrate … ret:9`）用 `usage: 'notification'` 重试一次，并返回
+     `物理反馈被系统触感开关忽略，已用通知场景振动代替`，行内原样显示。
+  4. 重试也失败 → reject 带两个 code/message，页面显示失败原因，不假装成功。
+- 真机（这台机器的触感开关是关的）：轻 / 中 / 重都显示
+  `已触发轻/中/重震动（物理反馈被系统触感开关忽略，已用通知场景振动代替）`。
+  hilog 里每次都是 `physicalFeedback` 先被 `ShouldIgnoreVibrate ret:9` 忽略，紧接着
+  `usage:3 duration:15`（轻）启动马达，HAL 打印
+  `StartByIntensity: haptic.time_25, support = 1 amp = 100` —— 马达确实转了。
+  所以本机不会出现「点了没反应还不知道为什么」。
+
+### 8. 系统分享（`system-share`）
+
+- 按钮「分享文本」，内容 `来自 KMP 平台能力演示的分享文本`（与 KMP 相同）。
+- ArkTS：先 `canIUse('SystemCapability.Collaboration.SystemShare')`，不可用则报
+  `当前设备不支持系统分享（…不可用）`；可用时
+  `systemShare.SharedData({utd: 'general.plain-text'})` +
+  `ShareController.show(context, {previewMode: DETAIL, selectionMode: SINGLE})`。
+- 与三端约定一致：promise resolve 只表示**面板已拉起**，不表示用户选了目标
+  （平台不回传）。真机拉起的是华为分享面板（华为分享 / 微信 / 备忘录 / QQ浏览器 /
+  蓝牙 / 复制 / 打印 / 添加至中转站…），行内显示
+  `已拉起系统分享面板（内容：…）`。
+
+### 9. 动态权限（`camera-permission`）
+
+- 8 行：相机 / 麦克风 / 位置 / 通知 / 日历 / 蓝牙 / 相册 / 通讯录（KMP 顺序）。
+  每行是 `状态 chip + 查询 + 申请 + 该状态的建议文案`，被拒绝后多一个 `去设置`。
+- 三态：`granted / denied / notDetermined`。鸿蒙没有「永久拒绝」，
+  `checkAccessTokenSync` 也只回答 granted / not；ArkTS 在
+  `requestPermissionsFromUser` **之前**把「问过一次」写进 preferences
+  （`permission_requested_<id>`），查询时才能区分 `未询问` 和 `已拒绝`。
+- 位置：`LOCATION` + `APPROXIMATELY_LOCATION`；任一已授权即视为 Granted，申请时
+  任一返回 0 即 Granted（用户可以只给模糊位置）。
+- 通知不是权限：走 `notificationManager.isNotificationEnabledSync` /
+  `requestEnableNotification` / `openNotificationSettings`。
+- 相册 / 通讯录：`READ_IMAGEVIDEO` / `READ_CONTACTS` 是 `system_basic` 的 ACL
+  受限权限，普通场景申请不到；行内显示「不可用：…」并给出官方 Picker 替代，
+  **没有查询/申请按钮**。
+- `去设置` 不是死路也不是裸 `startAbility`：普通权限用
+  `requestPermissionOnSetting`（官方二次申请路径），通知用
+  `openNotificationSettings`。
+- `authResults` 只接受 0 / -1；其他值（例如 2 = 权限没在 `module.json5` 声明）
+  作为失败显示，不假装是用户拒绝。
+- 真机验收（重装后从零开始）：
+  - 8 行都在；相机查询 `未询问` → 申请弹系统相机框 → 不允许 → `已拒绝`，
+    同时出现 `去设置` 和建议文案；
+  - 点 `去设置` 弹出「相机权限」设置页（允许 / 不允许 / 确定）；返回后行内提示
+    `已打开系统设置页；回到 App 后点「查询」刷新状态`；再查询仍是 `已拒绝`
+    （asked 标记生效，没有退回 `未询问`）；
+  - 通知同样能申请、拒绝（`已拒绝` + `去设置`），点开的是「通知管理」页；
+  - 麦克风 / 位置 / 日历 / 蓝牙查询都是 `未询问`（真实系统状态，不是占位）；
+  - 相册 / 通讯录显示完整 ACL 说明，且没有按钮。
+
+### 验收证据
+
+截图在 `docs/evidence/capabilities/haptics-share-permissions/`；基线是 `main`
+（`e6eb3c8`）的 HAP，改后是同一台机器、同一浅色主题下的 HAP：
+
+| 场景 | 基线（before） | 改后（after） |
+| --- | --- | --- |
+| 震动 + 系统分享 | `before-haptics-share.png` 两行「未实现」 | `after-haptics-light.png`、`after-haptics-heavy.png` 三按钮 + 回退说明 |
+| 系统分享面板 | —（没有按钮） | `after-share-panel.png` 华为分享面板 + 行内回显 |
+| 动态权限卡片 | `before-permissions.png`「未实现」 | `after-permissions-top.png` 说明 + 8 行；`after-permissions-queried-states.png` 六个可申请行的真实状态 |
+| 权限查询 / 申请 / 拒绝 | — | `after-permission-queried.png`、`after-permission-dialog.png`、`after-permission-denied.png` |
+| 去设置（不是死路） | — | `after-permission-settings.png` 相机权限设置页、`after-permission-settings-return.png` 返回提示 |
+| 通知的申请 / 拒绝 / 去设置 | — | `after-notification-denied.png`、`after-notification-settings.png` 通知管理页 |
+| 相册 / 通讯录 ACL | — | `after-permissions-acl.png` 不可用说明，无按钮 |
+
+### 为什么没有直接用 issue 列的三个 RN 适配包
+
+issue 列了 `@react-native-oh-tpl/react-native-haptic-feedback@2.2.0-0.0.1`、
+`react-native-share@10.2.1-0.0.6`、`react-native-permissions@4.1.2-0.1.7`。
+核对它们的 HarmonyOS 实现后，本单没有引入：
+
+- **haptic-feedback** 的 ArkTS `trigger()` 返回 void，内部直接 `return` 吞掉
+  「静音 / 振动模式关闭」的情况，也没有马达查询和每次调用的结果。页面无法知道
+  是否真的振了，正好违反本单「不要静默失败、开关关着要说明原因」的硬要求；
+  KMP 已验证的「马达查询 → physicalFeedback → notification 重试 → 回退说明」
+  只能自己写。
+- **share** 的 HarmonyOS `open()` 走 `GenericShare.openSingleWant`（want 分享），
+  还要引入它自己的 `RNShareAbility` 与页面；本页只需要 ShareKit 的
+  `SystemShare` 面板，20 行 ArkTS 就够，且与 KMP 实现一致。
+- **permissions** 的 `check()` 没有 `notDetermined`（鸿蒙查不到「未问过」），
+  `openSettings()` 打开的是设置应用首页而不是该权限的设置页；要满足本单的
+  「第三态 + 去设置」仍得自己维护 asked 标记并调用 `requestPermissionOnSetting`。
+  它本身也是 ArkTS turbo module + C++ method map，接入量和直接加到
+  `CapabilityProbe` 相同。
+
+（第二批的 async-storage / clipboard 确实用了 issue 列的适配包；这一批是三个包
+都不满足规格，才没有用。）
+
+## 与 KMP 版的几处有意差异
 
 1. **剪贴板状态**：KMP 显示「可用」（它有 PasteButton）；RN 显示「部分可用」，
    原因见上。
@@ -218,12 +325,14 @@ C++ method map，JS 侧通过 `src/native/turboModule.ts` 的 proxy 取模块。
 3. **存储目录的「刷新」**：KMP 的刷新会重新申请两个 user_grant 权限；RN 版
    保持一致，但首次打开只读取、不申请。手机上这两个公共目录 API 都返回 801，
    因此行内是说明而不是路径。
-4. **其余 6 行**：依旧没有实现，也没有为页面好看加占位依赖。
+4. **震动回退的文案**：与 KMP 相同（物理反馈被系统触感开关忽略、改用通知场景
+   振动），只是 RN 版把这句话放在行内结果里，而不是 KMP 的 `Ok` 消息。
+5. **其余 3 行**：蓝牙 LE、WiFi、相册写入依旧没有实现，也没有为页面好看加占位依赖。
 
 ## 后续
 
-其余 6 项（震动、分享、动态权限、BLE、WiFi、相册写入）仍按 KMP 的
-`PlatformCapabilities` 接口逐项移植；在实现之前，本页保持「未实现」并在
-`src/data/capabilities.ts` 里改对应行的 `status` / `action` 即可。
+其余 3 项（BLE、WiFi、相册写入）仍按 KMP 的 `PlatformCapabilities` 接口逐项移植；
+在实现之前，本页保持「未实现」并在 `src/data/capabilities.ts` 里改对应行的
+`status` / `action` 即可。
 剪贴板若要变成完全可用，需要在 RNOH 里新增一个包装 ArkTS `PasteButton` 的自定义
 组件，并把一次性的读取结果回传给 JS（KMP 用的是 nativeEmbeds）。
