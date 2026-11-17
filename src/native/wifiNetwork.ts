@@ -1,7 +1,8 @@
 /**
- * JS side of the app's `WifiNetwork` ArkTS module: scanning nearby access
- * points, reading the linked SSID, and connecting through HarmonyOS's
- * candidate-network route.
+ * JS side of the app's `WifiNetwork` module: scanning nearby access points,
+ * reading the linked SSID, and connecting (HarmonyOS candidate-network route on
+ * HarmonyOS; `WifiNetworkSpecifier` on Android; unavailable on iOS, where the
+ * row is marked `limited`).
  *
  * The native side returns structured payloads rather than rejecting for the
  * expected answers (Wi-Fi off, location switch off, the system trust dialog
@@ -75,7 +76,7 @@ function requireModule(): NativeWifiNetwork {
     typeof module.connect !== 'function' ||
     typeof module.currentSsid !== 'function'
   ) {
-    throw new Error('WifiNetwork 模块没有注册（本实现只接了 HarmonyOS）');
+    throw new Error('WifiNetwork 模块没有注册（本平台没有 WiFi 实现）');
   }
   return module;
 }

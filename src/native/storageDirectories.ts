@@ -1,19 +1,17 @@
 /**
- * JS side of the app's `CapabilityProbe` ArkTS module for the 存储目录 card.
+ * JS side of the app's `CapabilityProbe` module for the 存储目录 card.
  *
- * The ArkTS method returns the seven rows of the KMP build's HarmonyOS card,
- * with a real `fs.accessSync` probe per path and the platform's own note when
- * a public directory cannot be read (201 permission, 801 device type). This
- * wrapper keeps that runtime note and adds the three static HarmonyOS notes the
- * KMP card shows, so a missing path is explained instead of invented:
- *
- * - public Download/Document paths are sandbox-mapped paths on the devices that
- *   support them;
- * - the album is a `photoAccessHelper` URI library and has no directory path.
+ * The native module returns the seven rows with a real existence probe per
+ * path and its own note when a directory is absent or has a platform caveat.
+ * This wrapper keeps that runtime note and adds the platform's static fallback
+ * from `directoryCatalog` (HarmonyOS: sandbox-mapped public paths and the
+ * photoAccessHelper URI library; Android/iOS: scoped storage / app-private
+ * Documents and the album's MediaStore / PHPhotoLibrary identifiers).
  */
+import {DIRECTORY_NOTES} from './directoryCatalog';
 import {getTurboModule} from './turboModule';
 
-/** The seven kinds the HarmonyOS card lists, in its order. */
+/** The seven kinds the card lists, in the KMP order. */
 export type DirectoryKind =
   | 'Cache'
   | 'Files'
@@ -53,13 +51,6 @@ const KINDS: readonly DirectoryKind[] = [
   'Documents',
   'PhotoAlbum',
 ];
-
-const STATIC_NOTES: Partial<Record<DirectoryKind, string>> = {
-  Downloads: '公共下载目录的沙箱映射路径',
-  Documents: '公共文档目录的沙箱映射路径',
-  PhotoAlbum:
-    '鸿蒙相册通过 photoAccessHelper 的 URI 访问（如 file://media/Photo/...），没有可直接使用的目录路径',
-};
 
 const MISSING_NOTE = '该目录在当前平台不可用';
 
@@ -125,7 +116,7 @@ export async function readDirectories(
     const note =
       row.note.length > 0
         ? row.note
-        : STATIC_NOTES[row.kind] ??
+        : DIRECTORY_NOTES[row.kind] ??
           (path === undefined ? MISSING_NOTE : undefined);
     return {
       kind: row.kind,

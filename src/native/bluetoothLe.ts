@@ -1,34 +1,31 @@
 /**
- * JS side of `@react-native-oh-tpl/react-native-ble-plx`'s HarmonyOS module
- * (`harmony/rn_bleplx`, the `BlePlx` ArkTS turbo module over
- * `@ohos.bluetooth.ble`). It backs the platform-capability page's 蓝牙 LE card.
+ * JS side of the `BlePlx` native module, shared by all three platforms.
  *
- * The package's own `BleManager` is deliberately not used: it binds through RN
- * 0.72's `TurboModuleRegistry`, which checks the legacy `NativeModules` table
- * first, and RNOH answers every name with an empty stub. That is the same
- * reason `src/native/asyncStorage.ts`, `clipboard.ts` and `imagePicker.ts`
- * reach their turbo modules directly; `getTurboModule('BlePlx')` gets the
- * ArkTS module registered by the har's `BlePlxPackage`.
+ * The module is the ArkTS `BlePlx` implementation on HarmonyOS (registered by
+ * the adapted package's `BlePlxPackage`) and the official
+ * `react-native-ble-plx` module on Android and iOS (autolinked). The official
+ * `BleManager` wrapper is not used on any platform: on HarmonyOS it binds
+ * through RN 0.72's `TurboModuleRegistry`, which checks the legacy
+ * `NativeModules` table first, and RNOH answers every name with an empty stub.
+ * Asking the module directly works on every platform.
  *
- * Three behaviours live here because the adaptation does not provide them:
+ * Three behaviours live here because the raw module does not provide them:
  *
- * - **A connect timeout.** The ArkTS `connectToDevice` only settles on the
- *   platform's STATE_CONNECTED event, so a device that refuses the link — on
- *   HarmonyOS about half of the nearby private random addresses — would leave
- *   the promise pending forever. The call is raced against `CONNECT_TIMEOUT_MS`
- *   and a success that arrives after the timeout is disconnected again.
+ * - **A connect timeout.** `connectToDevice` only settles on the platform's
+ *   connected event, so a device that refuses the link would leave the promise
+ *   pending forever. The call is raced against `CONNECT_TIMEOUT_MS` and a
+ *   success that arrives after the timeout is disconnected again.
  * - **A classified failure.** The card has to say *why* a connection failed
  *   (timeout / refused / no permission / unknown) instead of a bare 「失败」.
- *   The ArkTS side reports a JSON string with the library's `errorCode` and the
- *   platform reason; `classifyConnectError` turns that into the four cases.
+ *   A rejection carries the library's `errorCode` and the platform reason;
+ *   `classifyConnectError` turns that into the four cases.
  * - **Throttled scan results.** A busy room produces many `ScanEvent`s per
  *   second; the found devices are de-duplicated by id and flushed to the page
- *   every `SCAN_FLUSH_MS`, so the row list re-renders at a bounded rate. The
- *   page keeps the list itself scrollable.
+ *   every `SCAN_FLUSH_MS`, so the row list re-renders at a bounded rate.
  *
- * Addresses: without `GET_BLUETOOTH_PEERS_MAC` (system_basic) HarmonyOS returns
- * a per-app virtual id in `ScanResult.deviceId`. That is what the page shows
- * and what is passed back to connect; it is not the real MAC.
+ * Addresses: Android reports the device MAC, iOS a system-assigned UUID, and
+ * HarmonyOS (without `GET_BLUETOOTH_PEERS_MAC`) a per-app virtual id. The page
+ * shows whatever the platform gave and passes it back to connect.
  */
 import {DeviceEventEmitter, EmitterSubscription} from 'react-native';
 
@@ -36,7 +33,7 @@ import {getTurboModule} from './turboModule';
 
 /** One scanned advertisement, reduced to what the card prints. */
 export type BleDevice = {
-  /** Virtual per-app address on HarmonyOS; not the real MAC. */
+  /** Platform device address: MAC on Android, UUID on iOS, virtual id on HarmonyOS. */
   id: string;
   name?: string;
   rssi?: number;
@@ -109,10 +106,11 @@ let clientCreated = false;
 let activeScan: ActiveScan | null = null;
 
 /**
- * The registered `BlePlx` module, or `null` when the HarmonyOS adaptation was
- * not installed. Calling this instantiates the ArkTS module, whose constructor
- * asks for `ohos.permission.ACCESS_BLUETOOTH`; callers ask for that permission
- * first so the dialog appears on the button press rather than on page open.
+ * The registered `BlePlx` module, or `null` when the platform's native module
+ * was not installed. On HarmonyOS calling this instantiates the ArkTS module,
+ * whose constructor asks for `ohos.permission.ACCESS_BLUETOOTH`; the page asks
+ * for the platform's Bluetooth permission first, so the dialog appears on the
+ * button press rather than on page open.
  */
 function nativeModule(): NativeBlePlx | null {
   if (native !== null) {
@@ -134,9 +132,7 @@ function nativeModule(): NativeBlePlx | null {
 function requireModule(): NativeBlePlx {
   const module = nativeModule();
   if (module === null) {
-    throw new Error(
-      'BlePlx 模块没有注册（@react-native-oh-tpl/react-native-ble-plx 的鸿蒙 har 没装进工程）',
-    );
+    throw new Error('BlePlx 模块没有注册（本平台的蓝牙模块没有装进工程）');
   }
   return module;
 }
@@ -150,7 +146,7 @@ function requireClient(): NativeBlePlx {
   return module;
 }
 
-/** Whether the HarmonyOS module is present; call this from an action, not render. */
+/** Whether the platform's BLE module is present; call this from an action, not render. */
 export function isBluetoothLeAvailable(): boolean {
   return nativeModule() !== null;
 }
@@ -272,7 +268,7 @@ export function connectTimeoutMessage(
 ): string {
   return `连接失败：连接超时（${Math.round(
     timeoutMs / 1000,
-  )} 秒内没有完成连接，鸿蒙上部分随机地址不可连接）`;
+  )} 秒内没有完成连接）`;
 }
 
 /** Turns a rejected connect into the reason the card prints. */

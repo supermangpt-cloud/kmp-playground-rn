@@ -29,6 +29,7 @@ import {
   CapabilityAction,
   UNIMPLEMENTED_NOTE,
 } from '../data/capabilities';
+import {BLUETOOTH_NOTE, WIFI_NOTE} from '../data/capabilityCatalog';
 import {DIRECTORY_LABELS} from '../data/directories';
 import {getItem, removeItem, setItem} from '../native/asyncStorage';
 import {
@@ -289,9 +290,7 @@ function WifiBody({
       </View>
 
       <Text style={styles.wifiNote} testID="capability-wifi-note">
-        走 addCandidateConfig
-        候选网络路线；连接时系统会弹确认框，取消显示为「已取消」。当前 SSID 需要
-        GET_WIFI_INFO 权限，拿不到时会如实显示未知。
+        {WIFI_NOTE}
       </Text>
 
       {state.message === undefined ? null : (
@@ -798,8 +797,7 @@ function BluetoothBody({
       </View>
 
       <Text style={styles.bluetoothNote} testID="capability-bluetooth-note">
-        鸿蒙返回的地址是应用侧虚拟地址（没有 GET_BLUETOOTH_PEERS_MAC 时不是真实
-        MAC）；附近有一部分 BLE 广播不可连接，连接会等到超时。
+        {BLUETOOTH_NOTE}
       </Text>
 
       {state.message === undefined ? null : (
@@ -985,10 +983,14 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
       const rows = await readDirectories(requestPermissions);
       setDirectories({status: 'loaded', rows});
     } catch (error) {
+      // Computed before the state updater: Hermes does not keep the catch
+      // binding alive for a closure React calls later, and reading it there
+      // throws `Property 'error' does not exist` and takes down the page.
+      const text = `读取失败：${messageOf(error)}`;
       setDirectories(current => ({
         ...current,
         status: 'error',
-        message: `读取失败：${messageOf(error)}`,
+        message: text,
       }));
     } finally {
       readingDirectories.current = false;

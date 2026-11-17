@@ -1,13 +1,12 @@
 /**
  * JS side of the app's `CapabilityProbe` haptics method.
  *
- * The ArkTS side (`CapabilityProbeTurboModule.vibrateHaptic`) is the part that
- * knows about HarmonyOS's two vibration gates: the motor query and the `usage`
- * switch. It returns a note when the normal `physicalFeedback` path was dropped
- * by the touch-feedback switch and the tap had to be retried as
- * `notification`; the row prints that note so a disabled system switch is never
- * mistaken for a broken button. A device without a motor rejects with a
- * sentence instead of doing nothing.
+ * The native side owns the platform's vibration details (the motor query and
+ * `usage` switch on HarmonyOS, `VibrationEffect` on Android, the taptic engine
+ * on iOS). It returns a note when the normal path had to fall back; the row
+ * prints that note so a disabled system switch is never mistaken for a broken
+ * button. A device without a motor rejects with a sentence instead of doing
+ * nothing.
  */
 import {getTurboModule} from './turboModule';
 

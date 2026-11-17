@@ -562,6 +562,30 @@ it('lists all seven directories with real paths, existence and notes', async () 
   });
 });
 
+it('shows a failed directory read instead of crashing the page', async () => {
+  // The page opens by reading the directories. On Android an unimplemented
+  // module rejects here; the catch binding must be turned into a string before
+  // the state updater runs, because Hermes drops it inside the closure (the
+  // Android device run of `main` showed a red "Property 'error' does not
+  // exist" render error from exactly this path).
+  mockReadDirectories.mockImplementation(() =>
+    Promise.reject(new Error('CapabilityProbe 模块没有注册')),
+  );
+  const tree = await render();
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-directories-message'})),
+  ).toContain('读取失败：CapabilityProbe 模块没有注册');
+  // The rest of the page still renders.
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-status-local-storage'})),
+  ).toBe('可用');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
 it('reads without a permission request, and 刷新 asks for the permission', async () => {
   const tree = await render();
 

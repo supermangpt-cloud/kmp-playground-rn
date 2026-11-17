@@ -35,8 +35,26 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>平台能力页的蓝牙 LE 卡片用它扫描附近设备并连接 / 断开；动态权限卡片的「蓝牙」行只在你点「申请」时读取并申请蓝牙权限。</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>iOS 12 及更早版本用这一条：平台能力页的蓝牙 LE 卡片用它扫描并连接附近的 BLE 设备。</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>iOS 17 及更新版本用这一条：平台能力页的「日历」权限行只在你点「申请」时申请日历完整访问权限，不读取也不写入日程。</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>平台能力页的「日历」权限行只在你点「申请」时申请日历访问权限，不读取也不写入日程。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>平台能力页的「相机」权限行只在你点「申请」时读取并申请相机权限，不拍照也不录制。</string>
+	<key>NSContactsUsageDescription</key>
+	<string>平台能力页的「通讯录」权限行只在你点「申请」时申请通讯录权限，不读取联系人。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>平台能力页的「位置」权限行和 Wi-Fi 卡片只在你点「申请」时申请使用期间的位置权限，不采集位置数据。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>平台能力页的「麦克风」权限行只在你点「申请」时读取并申请录音权限，不录音。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>「保存图片到相册」只在你点「保存」时申请仅添加照片的权限，用于把生成的二维码 PNG 写入相册。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>平台能力页的「相册」权限行只在你点「申请」时申请相册读取权限；「从相册选图」使用系统照片选择器，本身不需要这项权限。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

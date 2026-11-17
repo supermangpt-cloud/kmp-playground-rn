@@ -16,6 +16,11 @@ import {
 } from '../src/native/wifiNetwork';
 import {requestWifiScanPermission} from '../src/native/permissions';
 
+// The first test renders the screen with a non-empty AP list. On the 2-core CI
+// runner that first render has come close to Jest's 5 s default, so give this
+// file room instead of letting a slow runner look like a broken card.
+jest.setTimeout(20000);
+
 jest.mock('../src/native/permissions', () => {
   const actual = jest.requireActual(
     '../src/native/permissions',

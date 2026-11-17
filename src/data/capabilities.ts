@@ -1,3 +1,5 @@
+import {CAPABILITY_STATUS_OVERRIDES} from './capabilityCatalog';
+
 /**
  * The 14 platform capabilities of the KMP build's `Capability.kt`
  * (`shared/src/commonMain/kotlin/com/example/kmp/platform/PlatformCapabilities.kt`)
@@ -15,28 +17,24 @@
  * instead of offering a button that does nothing: `unimplemented` rows print
  * `RN 版本暂未实现`.
  *
- * Thirteen rows are `available` now: local storage, the storage-directory
- * card, device information, network status, haptics, system share, URL opening,
- * the dynamic-permission card, Bluetooth LE, WiFi, 保存图片到相册 and the two
- * image rows. The clipboard is `limited`: writing works, but HarmonyOS only
- * grants clipboard reads to the system PasteButton. Five rows are interactive
- * rather than a single button (`directories`, `haptics`, `permissions`,
- * `bluetooth-le`, `wifi-network`), which the screen renders as their own
- * bodies.
+ * Every row is implemented on Android. HarmonyOS keeps one `limited` row
+ * (clipboard reads need the system PasteButton) and iOS keeps one (Wi-Fi
+ * scanning needs an Apple entitlement); those statuses come from the platform
+ * profiles next to this file. Five rows are interactive rather than a single
+ * button (`directories`, `haptics`, `permissions`, `bluetooth-le`,
+ * `wifi-network`), which the screen renders as their own bodies.
  *
- * Bluetooth LE is `available` because the adapted `react-native-ble-plx`
- * really scans and connects on the device (see
- * `docs/features/capabilities.md` §7 and the evidence under
- * `docs/evidence/capabilities/bluetooth/`). Its two HarmonyOS properties — the
- * scan result's per-app virtual address, and the share of nearby random
- * addresses that cannot be connected — are printed inside the card, not
- * hidden behind the status chip.
+ * Bluetooth LE is `available` because ble-plx really scans and connects on
+ * the device (see `docs/features/capabilities.md` §7 and the evidence under
+ * `docs/evidence/capabilities/bluetooth/`). The card prints the platform's
+ * device-address caveat inside the card, not behind the status chip.
  *
- * 保存图片到相册 is `available` because the app's own `ImageSave` ArkTS module
- * really creates the asset through `photoAccessHelper.createAsset` behind the
- * WRITE_IMAGEVIDEO ACL (see `docs/features/qrcode.md` §4 and the album
- * screenshot under `docs/evidence/qr/save/`). It shares the QR page's save
- * path, so both buttons run the same JS PNG encoder and native module.
+ * 保存图片到相册 is `available` because the app's own `ImageSave` module
+ * really writes the asset: `photoAccessHelper.createAsset` behind the
+ * WRITE_IMAGEVIDEO ACL on HarmonyOS, MediaStore on Android and PHPhotoLibrary
+ * on iOS (see `docs/features/qrcode.md` §4 and the album screenshot under
+ * `docs/evidence/qr/save/`). It shares the QR page's save path, so both
+ * buttons run the same JS PNG encoder and native module.
  */
 export type CapabilityStatus = 'available' | 'limited' | 'unimplemented';
 
@@ -72,7 +70,14 @@ export type Capability = {
 /** The one-line reason an `unimplemented` row prints where its button would be. */
 export const UNIMPLEMENTED_NOTE = 'RN 版本暂未实现';
 
-export const CAPABILITIES: readonly Capability[] = [
+/**
+ * The base definitions. `status` here is the Android profile — every row is
+ * implemented there — and the HarmonyOS / iOS profiles in
+ * `capabilityCatalog.harmony.ts` / `capabilityCatalog.ios.ts` override the rows
+ * that platform cannot implement completely. The override is applied once
+ * below, so every consumer sees the status for the platform it is bundled for.
+ */
+const BASE_CAPABILITIES: readonly Capability[] = [
   {
     id: 'local-storage',
     title: '本地存储',
@@ -131,11 +136,9 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'clipboard',
     title: '剪贴板',
     detail: '写入后读回（粘贴由输入法验证）',
-    status: 'limited',
+    status: 'available',
     action: 'clipboard',
     actionLabel: '写入 → 读回',
-    limitation:
-      '写入可用；读回受系统限制：READ_PASTEBOARD 为 system_basic，普通应用无法申请，只能由系统 PasteButton 安全控件授权读取',
   },
   {
     id: 'camera-permission',
@@ -183,3 +186,16 @@ export const CAPABILITIES: readonly Capability[] = [
     actionLabel: '选图并解析',
   },
 ];
+
+/**
+ * The page's rows with this platform's status applied. A platform with no
+ * override for a row keeps the base (available) status.
+ */
+export const CAPABILITIES: readonly Capability[] = BASE_CAPABILITIES.map(
+  capability => {
+    const override = CAPABILITY_STATUS_OVERRIDES[capability.id];
+    return override === undefined
+      ? capability
+      : {...capability, ...override, limitation: override.limitation};
+  },
+);

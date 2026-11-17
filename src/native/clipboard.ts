@@ -1,10 +1,10 @@
 /**
- * JS side of `@react-native-oh-tpl/clipboard`'s HarmonyOS module.
+ * JS side of the `RNCClipboard` module, shared by all three platforms.
  *
- * Direct turbo module access for the same reason as
- * `src/native/imagePicker.ts` and `src/native/asyncStorage.ts`: the package's
- * own binding resolves through RN 0.72's legacy `NativeModules` table, which
- * RNOH answers with an empty stub.
+ * Android and iOS use the official `@react-native-clipboard/clipboard` module
+ * from the legacy `NativeModules` table. On HarmonyOS the package's own binding
+ * would resolve through that table and get RNOH's empty stub, so the ArkTS
+ * module is asked for directly.
  *
  * Writing is fire-and-forget in the ArkTS module (`setString` returns nothing
  * and only logs a failure). Reading asks for `ohos.permission.READ_PASTEBOARD`

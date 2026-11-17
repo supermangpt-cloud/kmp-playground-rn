@@ -2,18 +2,21 @@
  * JS side of the app's `CapabilityProbe` permission methods, and the eight rows
  * of the 动态权限 card.
  *
- * The states are the same three the KMP build maps HarmonyOS into: `granted`,
- * `denied` and `notDetermined` (HarmonyOS has no separate "permanently denied"
- * result, and its first-run dialog is not shown again after a denial — which is
- * why a denied row offers 去设置 instead of a second 申请).
- *
- * The album and contacts rows never reach the native side: on HarmonyOS
- * `READ_IMAGEVIDEO` / `READ_CONTACTS` are `system_basic` ACL restricted
- * permissions that a normal app cannot be granted, so the row states that and
- * names the sanctioned Picker alternative instead of offering a button that
- * could only fail.
+ * The states are the same three on every platform: `granted`, `denied` and
+ * `notDetermined`. What differs is the catalog behind the rows: on HarmonyOS
+ * the album and contacts reads are `system_basic` ACL permissions a normal app
+ * cannot hold, while on Android and iOS both are ordinary runtime permissions.
+ * `permissionCatalog.ts` / `permissionCatalog.harmony.ts` carry that split, so
+ * this file only formats states and talks to the native module.
  */
+import {
+  PERMISSION_DENIED_ADVICE,
+  PERMISSIONS,
+  PERMISSION_PLATFORM_NOTE,
+} from './permissionCatalog';
 import {getTurboModule} from './turboModule';
+
+export {PERMISSIONS, PERMISSION_PLATFORM_NOTE};
 
 /** The eight permissions of the KMP card, in its order. */
 export type PermissionId =
@@ -36,27 +39,6 @@ export type PermissionDefinition = {
   unavailableReason?: string;
 };
 
-/** The ACL reason from the HarmonyOS permission definitions, in full. */
-export const PHOTO_LIBRARY_REASON =
-  'READ_IMAGEVIDEO 是 ACL 受限权限（system_basic）：可在 AGC 按场景申请，但只对相册整理、批量读取这类场景开放且需审核；普通场景官方推荐用 PhotoViewPicker（无需任何权限）';
-export const CONTACTS_REASON =
-  'READ_CONTACTS 是 ACL 受限权限（system_basic）：可在 AGC 按场景申请，但只对通讯录同步、云端备份这类场景开放且需审核；普通场景官方推荐用联系人 Picker（无需任何权限）';
-
-/** The sentence the card prints above its rows, as the KMP page does. */
-export const PERMISSION_PLATFORM_NOTE =
-  '鸿蒙没有「永久拒绝」状态：拒绝后系统不会再次弹框，请点「去设置」在权限设置里打开。相册和通讯录是 system_basic，普通应用无法申请。';
-
-export const PERMISSIONS: readonly PermissionDefinition[] = [
-  {id: 'camera', label: '相机'},
-  {id: 'microphone', label: '麦克风'},
-  {id: 'location', label: '位置'},
-  {id: 'notifications', label: '通知'},
-  {id: 'calendar', label: '日历'},
-  {id: 'bluetooth', label: '蓝牙'},
-  {id: 'photo_library', label: '相册', unavailableReason: PHOTO_LIBRARY_REASON},
-  {id: 'contacts', label: '通讯录', unavailableReason: CONTACTS_REASON},
-];
-
 /** The chip word for a row; no state means the row was never queried. */
 export function permissionStateLabel(state?: PermissionState): string {
   switch (state) {
@@ -74,16 +56,16 @@ export function permissionStateLabel(state?: PermissionState): string {
 /**
  * The line under a row's buttons.
  *
- * HarmonyOS does not show its first-run dialog again after a denial, so a
- * denied row always points at 去设置; there is no "denied permanently" state to
- * distinguish it from.
+ * A denied row always points at 去设置: every platform stops showing its dialog
+ * after a denial (HarmonyOS and iOS immediately, Android after two refusals),
+ * so the advice comes from the platform catalog.
  */
 export function permissionAdvice(state?: PermissionState): string {
   switch (state) {
     case 'granted':
       return '已授权，可以直接使用';
     case 'denied':
-      return '被拒绝了；这个平台不会再弹框，点「去设置」在系统设置里打开';
+      return PERMISSION_DENIED_ADVICE;
     case 'notDetermined':
       return '还没问过，点「申请」';
     default:

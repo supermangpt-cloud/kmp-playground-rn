@@ -13,5 +13,16 @@ module.exports = {
     // this Jest preset cannot mount. The encoder is tested directly instead.
     '^@react-native-oh-tpl/react-native-qrcode-svg$':
       '<rootDir>/__mocks__/react-native-qrcode-svg.js',
+    // The unit tests pin the HarmonyOS behaviour the page was verified on. The
+    // platform profiles are plain modules with `.harmony` siblings, which Jest
+    // does not resolve by platform; map the bare specifiers to the HarmonyOS
+    // files so the suite keeps testing that profile. The Android/iOS profiles
+    // are exercised by the type check and the device/simulator runs.
+    '^(.*/)?capabilityCatalog$':
+      '<rootDir>/src/data/capabilityCatalog.harmony.ts',
+    '^(.*/)?permissionCatalog$':
+      '<rootDir>/src/native/permissionCatalog.harmony.ts',
+    '^(.*/)?directoryCatalog$':
+      '<rootDir>/src/native/directoryCatalog.harmony.ts',
   },
 };
