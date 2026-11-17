@@ -88,6 +88,12 @@ jobs:
       - name: install the RNOH har
         working-directory: harmony
         run: ohpm install --all
+      - name: add the generated type stub the ble-plx har imports
+        # This app has no RNOH codegen (see docs/harmony-setup.md), but the
+        # adapted ble-plx har imports `@rnoh/react-native-openharmony/generated/ts`
+        # for `TM.BlePlx.Spec`. The script writes that one type-only file into
+        # the ohpm-installed RNOH har; it is a build product, not source.
+        run: node scripts/inject-rnoh-codegen-stub.js
       - name: assemble the HAP (unsigned compile gate)
         # The runner has no signing material. hvigor skips signing when
         # signingConfigs is empty and still produces the unsigned HAP.

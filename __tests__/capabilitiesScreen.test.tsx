@@ -331,6 +331,20 @@ it('gives every implemented row a button, and no button to the rest', async () =
       continue;
     }
 
+    if (capability.id === 'bluetooth-le') {
+      expect(status).toBe('可用');
+      // The Bluetooth card draws 扫描 plus one 连接 per scanned device; it has
+      // no single capability action button.
+      expect(buttons).toHaveLength(0);
+      expect(notes).toHaveLength(0);
+      expect(
+        tree.root
+          .findAllByProps({testID: 'capability-bluetooth-scan'})
+          .filter(isHost),
+      ).toHaveLength(1);
+      continue;
+    }
+
     if (capability.status === 'unimplemented') {
       expect(status).toBe('未实现');
       // No button that could be pressed and do nothing.
@@ -366,6 +380,7 @@ it('gives every implemented row a button, and no button to the rest', async () =
     'system-share',
     'url-opener',
     'camera-permission',
+    'bluetooth-le',
     'image-pick',
     'barcode-decode',
   ]);

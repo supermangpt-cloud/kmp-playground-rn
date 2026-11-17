@@ -15,6 +15,7 @@
   "dependencies": {
     "@react-native-oh-tpl/async-storage": "1.21.0-0.2.2",
     "@react-native-oh-tpl/clipboard": "1.13.2-0.0.9",
+    "@react-native-oh-tpl/react-native-ble-plx": "3.2.0-0.0.3",
     "@react-native-oh-tpl/react-native-image-picker": "7.0.3-0.1.7",
     "@react-native-oh-tpl/react-native-qrcode-svg": "6.2.0-0.0.3",
     "@react-native-oh-tpl/react-native-svg": "15.0.1-8",
