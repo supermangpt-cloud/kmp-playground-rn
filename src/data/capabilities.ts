@@ -27,6 +27,7 @@ export type CapabilityStatus = 'available' | 'unimplemented';
 export type CapabilityAction =
   | 'pick-image'
   | 'decode-image'
+  | 'local-storage'
   | 'open-url';
 
 export type Capability = {
@@ -47,7 +48,9 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'local-storage',
     title: '本地存储',
     detail: 'SharedPreferences / NSUserDefaults / preferences',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'local-storage',
+    actionLabel: '写 → 读 → 删 → 再读',
   },
   {
     id: 'directories',

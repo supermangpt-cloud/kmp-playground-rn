@@ -14,12 +14,19 @@ import {beforeEach, expect, it, jest} from '@jest/globals';
 
 import {CAPABILITIES, UNIMPLEMENTED_NOTE} from '../src/data/capabilities';
 import CapabilitiesScreen from '../src/screens/CapabilitiesScreen';
+import {getItem, removeItem, setItem} from '../src/native/asyncStorage';
 import {launchImageLibrary} from '../src/native/imagePicker';
 import {decodeImage, isNativeScanAvailable} from '../src/native/scanKit';
 import {openExternalUrl} from '../src/native/urlOpener';
 
 jest.mock('../src/native/imagePicker', () => ({
   launchImageLibrary: jest.fn(),
+}));
+
+jest.mock('../src/native/asyncStorage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
 }));
 
 jest.mock('../src/native/scanKit', () => ({
@@ -35,13 +42,18 @@ jest.mock('../src/native/urlOpener', () => ({
 type MockWith = {
   mockImplementation: (impl: (...args: never[]) => unknown) => void;
   mockResolvedValue: (value: unknown) => void;
+  mockResolvedValueOnce: (value: unknown) => void;
   mockReturnValue: (value: unknown) => void;
+  mock: {calls: unknown[][]};
 };
 
 const mockLaunch = launchImageLibrary as unknown as MockWith;
 const mockNativeAvailable = isNativeScanAvailable as unknown as MockWith;
 const mockDecodeImage = decodeImage as unknown as MockWith;
 const mockOpenUrl = openExternalUrl as unknown as MockWith;
+const mockGetItem = getItem as unknown as MockWith;
+const mockSetItem = setItem as unknown as MockWith;
+const mockRemoveItem = removeItem as unknown as MockWith;
 
 function flatten(children: unknown): string {
   if (Array.isArray(children)) {
@@ -82,6 +94,9 @@ beforeEach(() => {
   mockOpenUrl.mockImplementation(() =>
     Promise.resolve({ok: true, url: 'https://example.com'}),
   );
+  mockGetItem.mockImplementation(() => Promise.resolve(null));
+  mockSetItem.mockImplementation(() => Promise.resolve(undefined));
+  mockRemoveItem.mockImplementation(() => Promise.resolve(undefined));
 });
 
 it('renders the 14 KMP capabilities in the KMP page order', () => {
@@ -153,7 +168,7 @@ it('marks only the implemented rows available, and gives no button to the rest',
     CAPABILITIES.filter(capability => capability.status === 'available').map(
       capability => capability.id,
     ),
-  ).toEqual(['url-opener', 'image-pick', 'barcode-decode']);
+  ).toEqual(['local-storage', 'url-opener', 'image-pick', 'barcode-decode']);
 
   renderer.act(() => {
     tree.unmount();
@@ -258,6 +273,56 @@ it('reports a missing image-picker module instead of a silent no-op', async () =
   expect(
     textOf(tree.root.findByProps({testID: 'capability-result-image-pick'})),
   ).toBe('失败：ImagePicker 模块没有注册（launchImageLibrary 不存在）');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('runs 写 → 读 → 删 → 再读 through AsyncStorage and prints the round trip', async () => {
+  mockSetItem.mockImplementation((...args: never[]) => {
+    const value = args[1];
+    mockGetItem.mockResolvedValueOnce(value);
+    return Promise.resolve(undefined);
+  });
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-local-storage'})
+      .props.onPress();
+  });
+
+  expect(mockSetItem).toHaveBeenCalledTimes(1);
+  const [key, value] = mockSetItem.mock.calls[0] as [string, string];
+  expect(key).toBe('platform_capabilities.demo_key');
+  expect(value).toMatch(/^rn-demo-\d{4}$/);
+  expect(mockGetItem).toHaveBeenCalledWith(key);
+  expect(mockRemoveItem).toHaveBeenCalledWith(key);
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-local-storage'})),
+  ).toBe(`写入「${value}」→ 读回「${value}」→ 删除 → 再读「null」`);
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('reports an AsyncStorage failure instead of a fake round trip', async () => {
+  mockSetItem.mockImplementation(() =>
+    Promise.reject(new Error('AsyncStorage 模块没有注册')),
+  );
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-local-storage'})
+      .props.onPress();
+  });
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-local-storage'})),
+  ).toBe('失败：AsyncStorage 模块没有注册');
 
   renderer.act(() => {
     tree.unmount();

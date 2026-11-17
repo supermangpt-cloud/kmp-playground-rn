@@ -25,6 +25,7 @@ import {
   CapabilityAction,
   UNIMPLEMENTED_NOTE,
 } from '../data/capabilities';
+import {getItem, removeItem, setItem} from '../native/asyncStorage';
 import {launchImageLibrary} from '../native/imagePicker';
 import {decodeImage, isNativeScanAvailable} from '../native/scanKit';
 import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
@@ -40,6 +41,14 @@ type RowOutcome =
   | {kind: 'busy'}
   | {kind: 'done'; text: string}
   | {kind: 'error'; text: string};
+
+/** Key KMP's storage demo uses; removed at the end of every round trip. */
+const STORAGE_DEMO_KEY = 'platform_capabilities.demo_key';
+
+/** Four random digits, like KMP's `Random.nextInt(1000, 10_000)`. */
+function randomSuffix(): string {
+  return String(Math.floor(Math.random() * 9000) + 1000);
+}
 
 function statusLabel(capability: Capability): string {
   return capability.status === 'available' ? '可用' : '未实现';
@@ -58,6 +67,35 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   const setOutcome = useCallback((id: string, outcome: RowOutcome) => {
     setOutcomes(current => ({...current, [id]: outcome}));
   }, []);
+
+  /** 「写 → 读 → 删 → 再读」: the full storage round trip, inline. */
+  const storageRoundTrip = useCallback(
+    async (id: string) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      setOutcome(id, {kind: 'busy'});
+      try {
+        const value = `rn-demo-${randomSuffix()}`;
+        await setItem(STORAGE_DEMO_KEY, value);
+        const readBack = await getItem(STORAGE_DEMO_KEY);
+        await removeItem(STORAGE_DEMO_KEY);
+        const afterRemove = await getItem(STORAGE_DEMO_KEY);
+        setOutcome(id, {
+          kind: 'done',
+          text: `写入「${value}」→ 读回「${readBack ?? 'null'}」→ 删除 → 再读「${
+            afterRemove ?? 'null'
+          }」`,
+        });
+      } catch (error) {
+        setOutcome(id, {kind: 'error', text: `失败：${messageOf(error)}`});
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
 
   /** 「打开链接」: the shared guard runs before the system browser sees it. */
   const openLink = useCallback(
@@ -219,6 +257,9 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   const runAction = useCallback(
     (capability: Capability, action: CapabilityAction) => {
       switch (action) {
+        case 'local-storage':
+          storageRoundTrip(capability.id);
+          return;
         case 'open-url':
           openLink(capability.id);
           return;
@@ -230,7 +271,7 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
           return;
       }
     },
-    [decodePickedImage, openLink, pickImage],
+    [decodePickedImage, openLink, pickImage, storageRoundTrip],
   );
 
   return (
