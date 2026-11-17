@@ -4,6 +4,7 @@ import { ImagePickerViewPackage } from '@react-native-oh-tpl/react-native-image-
 import { AsyncStoragePackage } from '@react-native-oh-tpl/async-storage';
 import { ClipboardPackage } from '@react-native-oh-tpl/clipboard';
 import { ScanKitPackage } from './scan/ScanKitPackage';
+import { CapabilityProbePackage } from './capabilities/CapabilityProbePackage';
 
 /**
  * Third-party RN packages linked into the app. The list contains the
@@ -34,5 +35,8 @@ export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
     // The app's own Scan Kit bridge: the self-drawn `pages/ScanPage` scanner
     // (`customScan`), the system-scan fallback and native image decoding.
     new ScanKitPackage(ctx),
+    // The app's capability probe: `@ohos.deviceInfo`, `@ohos.net.connection`
+    // and the storage-directory reads for the platform-capability page.
+    new CapabilityProbePackage(ctx),
   ];
 }

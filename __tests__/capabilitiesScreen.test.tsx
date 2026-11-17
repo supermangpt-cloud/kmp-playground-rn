@@ -19,12 +19,17 @@ import {
   getString as readClipboard,
   setString as writeClipboard,
 } from '../src/native/clipboard';
+import {readDeviceInfo} from '../src/native/deviceInfo';
 import {launchImageLibrary} from '../src/native/imagePicker';
 import {decodeImage, isNativeScanAvailable} from '../src/native/scanKit';
 import {openExternalUrl} from '../src/native/urlOpener';
 
 jest.mock('../src/native/imagePicker', () => ({
   launchImageLibrary: jest.fn(),
+}));
+
+jest.mock('../src/native/deviceInfo', () => ({
+  readDeviceInfo: jest.fn(),
 }));
 
 jest.mock('../src/native/asyncStorage', () => ({
@@ -57,6 +62,7 @@ type MockWith = {
 };
 
 const mockLaunch = launchImageLibrary as unknown as MockWith;
+const mockDeviceInfo = readDeviceInfo as unknown as MockWith;
 const mockNativeAvailable = isNativeScanAvailable as unknown as MockWith;
 const mockDecodeImage = decodeImage as unknown as MockWith;
 const mockOpenUrl = openExternalUrl as unknown as MockWith;
@@ -99,6 +105,15 @@ function render(onBack: () => void = () => {}): renderer.ReactTestRenderer {
 beforeEach(() => {
   jest.clearAllMocks();
   mockLaunch.mockImplementation(() => Promise.resolve({didCancel: true}));
+  mockDeviceInfo.mockImplementation(() =>
+    Promise.resolve({
+      model: 'ALN-AL00',
+      systemName: 'HarmonyOS',
+      systemVersion: '7.0.0.111(SP10C00E111R4P3)',
+      appName: 'KMP RN Demo',
+      appVersion: '1.0.0',
+    }),
+  );
   mockNativeAvailable.mockReturnValue(false);
   mockDecodeImage.mockImplementation(() =>
     Promise.reject(new Error('decodeImage should not run here')),
@@ -192,12 +207,37 @@ it('gives every implemented row a button, and no button to the rest', () => {
     CAPABILITIES.filter(capability => capability.status === 'available').map(
       capability => capability.id,
     ),
-  ).toEqual(['local-storage', 'url-opener', 'image-pick', 'barcode-decode']);
+  ).toEqual([
+    'local-storage',
+    'device-info',
+    'url-opener',
+    'image-pick',
+    'barcode-decode',
+  ]);
   expect(
     CAPABILITIES.filter(capability => capability.status === 'limited').map(
       capability => capability.id,
     ),
   ).toEqual(['clipboard']);
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('prints the real device model, system version and app build for 设备信息', async () => {
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-device-info'})
+      .props.onPress();
+  });
+
+  expect(mockDeviceInfo).toHaveBeenCalledTimes(1);
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-device-info'})),
+  ).toBe('ALN-AL00 · HarmonyOS 7.0.0.111(SP10C00E111R4P3) · KMP RN Demo 1.0.0');
 
   renderer.act(() => {
     tree.unmount();

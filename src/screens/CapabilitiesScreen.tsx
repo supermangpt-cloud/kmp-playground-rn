@@ -30,6 +30,7 @@ import {
   getString as readClipboard,
   setString as writeClipboard,
 } from '../native/clipboard';
+import {readDeviceInfo} from '../native/deviceInfo';
 import {launchImageLibrary} from '../native/imagePicker';
 import {decodeImage, isNativeScanAvailable} from '../native/scanKit';
 import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
@@ -101,6 +102,32 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         });
       } catch (error) {
         setOutcome(id, {kind: 'error', text: `失败：${messageOf(error)}`});
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
+
+  /** 「读取设备信息」: the real model, system and app build, as the device reports them. */
+  const readDevice = useCallback(
+    async (id: string) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      setOutcome(id, {kind: 'busy'});
+      try {
+        const info = await readDeviceInfo();
+        setOutcome(id, {
+          kind: 'done',
+          text: `${info.model} · ${info.systemName} ${info.systemVersion} · ${info.appName} ${info.appVersion}`,
+        });
+      } catch (error) {
+        setOutcome(id, {
+          kind: 'error',
+          text: `读取失败：${messageOf(error)}`,
+        });
       } finally {
         busy.current = false;
       }
@@ -320,6 +347,9 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         case 'clipboard':
           clipboardRoundTrip(capability.id);
           return;
+        case 'device-info':
+          readDevice(capability.id);
+          return;
         case 'pick-image':
           pickImage(capability.id);
           return;
@@ -333,6 +363,7 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
       decodePickedImage,
       openLink,
       pickImage,
+      readDevice,
       storageRoundTrip,
     ],
   );

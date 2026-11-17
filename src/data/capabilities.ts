@@ -32,7 +32,8 @@ export type CapabilityAction =
   | 'decode-image'
   | 'local-storage'
   | 'open-url'
-  | 'clipboard';
+  | 'clipboard'
+  | 'device-info';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -68,7 +69,9 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'device-info',
     title: '设备信息',
     detail: '型号、系统名+版本、App 名+版本',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'device-info',
+    actionLabel: '读取设备信息',
   },
   {
     id: 'network-status',
