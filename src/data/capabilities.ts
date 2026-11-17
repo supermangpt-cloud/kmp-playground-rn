@@ -10,21 +10,29 @@
  * side by side, so the visible order is the one that has to match.
  *
  * `status` is the RN port's own availability, not the KMP one (the KMP build
- * reports all 14 as 可用). The ticket allows the skeleton to ship before the
- * capabilities do, on one hard condition: an unavailable capability must say so
- * instead of offering a button that does nothing. Everything except the two
- * capabilities the scan page already implements is therefore `unimplemented`,
- * and the page prints `RN 版本暂未实现` for those rows.
+ * reports all 14 as 可用). The page only offers a button when the capability
+ * really calls the platform, and an unavailable capability has to say so
+ * instead of offering a button that does nothing: `unimplemented` rows print
+ * `RN 版本暂未实现`.
+ *
+ * The first three rows this ticket implements are `available` for storage and
+ * URL opening, and `limited` for the clipboard: writing works, but HarmonyOS
+ * only grants clipboard reads to the system PasteButton.
  *
  * In particular 保存图片到相册 is `unimplemented`: the QR page has a 保存到相册
  * button, but that button only explains why the RN stack cannot write to the
  * album (see `docs/features/qrcode.md` §4). Labelling it partially available
  * would be exactly the "looks usable but is not" the ticket forbids.
  */
-export type CapabilityStatus = 'available' | 'unimplemented';
+export type CapabilityStatus = 'available' | 'limited' | 'unimplemented';
 
-/** What a row's button does; only `available` rows have one. */
-export type CapabilityAction = 'pick-image' | 'decode-image';
+/** What a row's button does; only rows that can call the platform have one. */
+export type CapabilityAction =
+  | 'pick-image'
+  | 'decode-image'
+  | 'local-storage'
+  | 'open-url'
+  | 'clipboard';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -34,6 +42,8 @@ export type Capability = {
   status: CapabilityStatus;
   action?: CapabilityAction;
   actionLabel?: string;
+  /** Why a `limited` row is not fully available; shown inside the row. */
+  limitation?: string;
 };
 
 /** The one-line reason an `unimplemented` row prints where its button would be. */
@@ -44,7 +54,9 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'local-storage',
     title: '本地存储',
     detail: 'SharedPreferences / NSUserDefaults / preferences',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'local-storage',
+    actionLabel: '写 → 读 → 删 → 再读',
   },
   {
     id: 'directories',
@@ -80,13 +92,19 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'url-opener',
     title: '打开外部链接',
     detail: '复用 isNavigableUrl，只放行 http(s)',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'open-url',
+    actionLabel: '打开链接',
   },
   {
     id: 'clipboard',
     title: '剪贴板',
     detail: '写入后读回（粘贴由输入法验证）',
-    status: 'unimplemented',
+    status: 'limited',
+    action: 'clipboard',
+    actionLabel: '写入 → 读回',
+    limitation:
+      '写入可用；读回受系统限制：READ_PASTEBOARD 为 system_basic，普通应用无法申请，只能由系统 PasteButton 安全控件授权读取',
   },
   {
     id: 'camera-permission',

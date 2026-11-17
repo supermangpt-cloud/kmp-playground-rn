@@ -36,6 +36,20 @@ add_subdirectory(
     "${OH_MODULE_DIR}/@react-native-oh-tpl/react-native-svg/src/main/cpp"
     ./svg)
 
+# async-storage's HarmonyOS adaptation: the ArkTS turbo module is registered
+# from PackageProvider.ets and its generated C++ method map from
+# PackageProvider.cpp, so its package is linked here as well.
+add_subdirectory(
+    "${OH_MODULE_DIR}/@react-native-oh-tpl/async-storage/src/main/cpp"
+    ./async_storage)
+
+# The clipboard adaptation has the same two halves as async-storage: an ArkTS
+# turbo module registered in PackageProvider.ets and a C++ package supplying
+# `RNCClipboard`'s method map.
+add_subdirectory(
+    "${OH_MODULE_DIR}/@react-native-oh-tpl/clipboard/src/main/cpp"
+    ./clipboard)
+
 add_library(rnoh_app SHARED
     "./PackageProvider.cpp"
     "${RNOH_CPP_DIR}/RNOHAppNapiBridge.cpp"
@@ -44,3 +58,5 @@ add_library(rnoh_app SHARED
 target_link_libraries(rnoh_app PUBLIC rnoh)
 target_link_libraries(rnoh_app PUBLIC rnoh_webview)
 target_link_libraries(rnoh_app PUBLIC rnoh_svg)
+target_link_libraries(rnoh_app PUBLIC rnoh_async_storage)
+target_link_libraries(rnoh_app PUBLIC rnoh_clipboard)

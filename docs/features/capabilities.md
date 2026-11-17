@@ -1,100 +1,138 @@
-# 平台能力页（骨架）
+# 平台能力页
 
-这一单把首屏「平台能力」入口补上了页面：14 项能力的列表，顺序、中文名和说明文字
-与 KMP 版一致。**只做骨架**——除扫码页已经实现的两项外，其余能力在页面上明确标
-「未实现」，不提供「点了没反应」的按钮，也没有为填满 14 行新增任何依赖。
+这一单把能力页从骨架推进到第一批真实能力。14 行的名称、说明、顺序仍与 KMP 版
+（`CapabilitiesScreen.kt` 真机 dump）一致；页面结构也还是 KMP 的
+`名称 + 说明 + 右上状态 + 下方操作按钮 + 行内结果`：
+
+- **可用**（4 行）：本地存储、打开外部链接、从相册选图、图片解析二维码。
+- **部分可用**（1 行）：剪贴板。写入可用，读取被鸿蒙的系统权限限制，行内写明原因。
+- **未实现**（9 行）：其余能力继续显示「未实现」，没有按钮。
+
+首屏、购物车、扫码页的现有对齐没有改动。
 
 ## 页面结构
 
 | 文件 | 内容 |
 | --- | --- |
-| `src/data/capabilities.ts` | 14 项的静态定义（`id` / `title` / `detail` / `status`，可用项带 `action` 和 `actionLabel`） |
-| `src/screens/CapabilitiesScreen.tsx` | 头部（返回、`共 14 项`）、标题/副标题、`ScrollView` 里的 14 张卡片；可用项在行内调用系统 API 并显示结果 |
-| `App.tsx` | `Screen` 增加 `{kind: 'capabilities'}`，首屏 `平台能力` 进入、`返回` 回列表 |
-| `src/screens/ProductListScreen.tsx` | `onOpenCapabilities` 由可选改为必填，入口真正接上 |
-
-卡片结构照抄 KMP 的 `CapabilityCard`：能力名（17 bold）与说明（11 hint）在左，
-右上角是状态标签；可用项下面是一行操作按钮，结果再往下显示在行内。
-
-## 14 项对照表
-
-KMP 状态取自真机（`com.example.kmp.harmony`）的能力页 dump，14 行全部是「可用」。
-
-| # | `Capability.kt` 枚举 | KMP 页面标题 | 说明文字 | KMP 状态 | RN 状态 |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `LocalStorage` | 本地存储 | `SharedPreferences / NSUserDefaults / preferences` | 可用 | 未实现 |
-| 2 | `Directories` | 存储目录 | `应用私有目录与公共目录的完整路径` | 可用 | 未实现 |
-| 3 | `DeviceInfo` | 设备信息 | `型号、系统名+版本、App 名+版本` | 可用 | 未实现 |
-| 4 | `NetworkStatus` | 网络状态 | `是否联网 + 连接类型（wifi/cellular/ethernet）` | 可用 | 未实现 |
-| 5 | `Haptics` | 震动 / 触觉 | `轻 / 中 / 重三档` | 可用 | 未实现 |
-| 6 | `SystemShare` | 系统分享 | `分享一段文本` | 可用 | 未实现 |
-| 7 | `UrlOpener` | 打开外部链接 | `复用 isNavigableUrl，只放行 http(s)` | 可用 | 未实现 |
-| 8 | `Clipboard` | 剪贴板 | `写入后读回（粘贴由输入法验证）` | 可用 | 未实现 |
-| 9 | `CameraPermission` | 动态权限 | `8 个常用权限，每行可查询、申请，拒绝后有兜底` | 可用 | 未实现 |
-| 10 | `BluetoothLe` | 蓝牙 LE | `扫描附近设备，连接 / 断开` | 可用 | 未实现 |
-| 11 | `WifiNetwork` | WiFi | `扫描附近 AP（SSID + RSSI + 加密），连接` | 可用 | 未实现 |
-| 12 | `ImageSave` | 保存图片到相册 | `生成二维码 PNG 并写入系统相册` | 可用 | 未实现 |
-| 13 | `ImagePick` | 从相册选图 | `系统照片选择器，零相册权限` | 可用 | **可用** |
-| 14 | `BarcodeDecode` | 图片解析二维码 | `选一张带码的图并识别，零权限` | 可用 | **可用** |
-
-### 与 issue 表格的三处差异（都以真机为准）
-
-1. **顺序**：`Directories` 在 `Capability.kt` 的枚举里是最后一项，但 KMP 能力页把它
-   画在**第 2 张卡**。验收是两版页面并排对比，所以 RN 也放第 2 位。
-2. **标题**：`CameraPermission` 的页面标题是「动态权限」（不是「相机权限」），
-   `BarcodeDecode` 是「图片解析二维码」（不是「图片扫码」）。KMP 页面的
-   `CapabilityRow` 覆盖了枚举里更短的名字。
-3. **`ImageSave` 的 RN 状态是「未实现」**：issue 假设它「目前在二维码页里可用」，但
-   二维码页的「保存到相册」只会显示不可用原因——RNOH 0.72.140 上 camera-roll 适配包
-   编译不过，也没有把 PNG 写进沙箱的文件能力（见
-   [qrcode.md](qrcode.md) §4）。因此这里不能写「部分可用／二维码页可用」，否则正好
-   是这一单禁止的「假装能点」。
+| `src/data/capabilities.ts` | 14 项的静态定义（`id` / `title` / `detail` / `status` / `action` / `actionLabel` / `limitation`） |
+| `src/screens/CapabilitiesScreen.tsx` | 头部、标题/副标题、`ScrollView` 里的 14 张卡片；每个可用项在行内调用真实 API 并显示结果 |
+| `src/native/urlOpener.ts` | `isNavigableUrl` 守卫 + `Linking.openURL` |
+| `src/native/asyncStorage.ts` | HarmonyOS `RNCAsyncStorage` turbo module 的 JS 封装（写 / 读 / 删） |
+| `src/native/clipboard.ts` | HarmonyOS `RNCClipboard` turbo module 的 JS 封装（写 / 读） |
+| `harmony/entry/oh-package.json5` | 新增 async-storage、clipboard 两个 har 依赖 |
+| `harmony/entry/src/main/cpp/PackageProvider.cpp` | 注册两个包的 C++ method map（CAPI 架构） |
+| `harmony/entry/src/main/ets/PackageProvider.ets` | 注册两个包的 ArkTS turbo module |
 
 ## 状态规则
 
-| RN 状态 | 标签 | 标签样式 | 行内操作区 |
+| RN 状态 | 标签 | 样式 | 行内操作区 |
 | --- | --- | --- | --- |
-| 已实现 | `可用` | 绿色（`#2E7D32`）细边框 | 一个橙色按钮，调用真实 API，结果显示在按钮下方 |
-| 未实现 | `未实现` | 灰色（`#9E9E9E`）细边框 | **没有按钮**，灰色文字 `RN 版本暂未实现` |
+| `available` | `可用` | 绿色（`#2E7D32`）细边框 | 一个橙色按钮，调用真实 API，结果显示在按钮下方 |
+| `limited` | `部分可用` | 橙色（`#EF6C00`）细边框 | 按钮照常可用，另有一行橙色限制说明 |
+| `unimplemented` | `未实现` | 灰色（`#9E9E9E`）细边框 | **没有按钮**，灰色文字 `RN 版本暂未实现` |
 
-「没有按钮」是刻意的：比一个看起来能点、点了没反应的按钮更符合要求，也避免出现
-「禁用按钮」被误解成权限问题。
+「没有按钮」和骨架时一样是刻意的：比一个看起来能点、点了没反应的按钮更符合要求。
+`limited` 是这一单为剪贴板新增的状态（见下文「为什么剪贴板不是『可用』」）。
 
-## 两个可用项的具体路径
+## 三项新能力
 
-- **从相册选图**（`image-pick`）：`src/native/imagePicker.ts` 的
-  `launchImageLibrary`（鸿蒙 `PhotoViewPicker`，零相册权限），行内显示
-  `已选择：文件名 · MIME · 字节数`；取消显示 `已取消选图`。
-- **图片解析二维码**（`barcode-decode`）：同一个选图入口，优先
-  `src/native/scanKit.ts` 的原生 Scan Kit 解码；模块不存在时退回
-  `src/qr/imageDecode.ts` 的纯 JS `jsqr`。行内显示
-  `解析到 N 个：内容`，失败显示平台给的原因（不是静默失败）。
+### 1. 本地存储（`local-storage`）
 
-这两项都只是复用扫码页已有的模块，**没有新增依赖**；在其他平台（Android/iOS）上
-模块不存在时，点按钮会在行内显示「失败：ImagePicker 模块没有注册……」这类明确原因。
-状态标签本身是静态的（与 `src/data/capabilities.ts` 一致），因为本工程的鸿蒙版是
-这两个适配的主目标平台。
+- 按钮文案：`写 → 读 → 删 → 再读`（与 KMP 一致）。
+- 一次点击依次调用 `@react-native-oh-tpl/async-storage` 的
+  `multiSet` → `multiGet` → `multiRemove` → `multiGet`；key 用 KMP 的
+  `platform_capabilities.demo_key`，值形如 `rn-demo-2051`。
+- 结果只写在行内，格式与 KMP 相同：
+  `写入「rn-demo-2051」→ 读回「rn-demo-2051」→ 删除 → 再读「null」`。
+- 真机（HUAWEI Mate 60 Pro，HarmonyOS）实测通过，见
+  [after-capabilities-top.png](../evidence/capabilities/after-capabilities-top.png)。
+
+### 2. 打开外部链接（`url-opener`）
+
+- 按钮文案：`打开链接`；演示 URL `https://example.com`（与 KMP 相同）。
+- 先复用 `src/ui/webUrl.ts` 的 `isNavigableUrl`（KMP `GuardedUrlOpener` 的
+  RN 对应），只放行 http/https；其他 scheme 在任何平台调用之前就被拒绝，并回显
+  `只允许打开 http/https 链接：…`。
+- 通过 RN 内置 `Linking.openURL` 拉起系统浏览器；成功回显
+  `已交给系统浏览器：https://example.com`。
+- 真机实测：点按后前台切到 `com.huawei.hmos.browser`，返回 App 后行内显示上面的回显
+  （浏览器截图 [after-url-browser.png](../evidence/capabilities/after-url-browser.png)）。
+
+### 3. 剪贴板（`clipboard`）
+
+- 按钮文案：`写入 → 读回`；写入值形如 `RN 剪贴板演示 5371`。
+- 先写，再尝试读回。**鸿蒙上写入成功、读取失败**：
+  - `ohos.permission.READ_PASTEBOARD` 是 `user_grant` 但 `availableLevel: system_basic`，
+    普通应用无法持有；`@react-native-oh-tpl/clipboard` 的 ArkTS 模块在运行时申请失败后
+    reject `User refuses authorization`。
+  - `devecocli device clipboard read` 能读到刚写入的 `RN 剪贴板演示 5371`，证明写入
+    确实落到了系统剪贴板；App 内的读回则被系统拒绝。
+  - 页面回显：`写入「RN 剪贴板演示 5371」成功；读回失败：User refuses authorization（读取需要系统 PasteButton 安全控件授权）`。
+- **状态标为 `部分可用`，不是 `可用`**：
+  - KMP 版能在 Compose 里嵌入系统 `PasteButton`，靠用户点击控件拿到一次性读取授权，
+    所以 KMP 显示「可用」。
+  - RNOH 0.72 的 RN 视图里没有嵌入 ArkTS 安全控件的通路的现成适配；本单没有为
+    「一个按钮」新增 CAPI 自定义组件，因此 RN 版读回确实不可用。
+  - 按「没实现完的能力不许虚标」的硬约束，这里用 `limited`：
+    写入是真实可用的，读取的限制在行内明写，而不是标成完全可用或静默失败。
+- 真机结果见
+  [after-capabilities-url-clipboard.png](../evidence/capabilities/after-capabilities-url-clipboard.png)。
+
+## HarmonyOS 依赖怎么接的
+
+两个包都按之前 WebView / svg / image-picker 的手工接入方式（本工程没有 RNOH
+autolinking）：
+
+1. `npm install` 固定版本：`@react-native-oh-tpl/async-storage@1.21.0-0.2.2`、
+   `@react-native-oh-tpl/clipboard@1.13.2-0.0.9`（package.json 里不带 `^`）。
+2. `harmony/entry/oh-package.json5` 用 `file:../../node_modules/.../harmony/*.har`
+   引入 har。
+3. `CMakeLists.txt` `add_subdirectory` 两个包的 `src/main/cpp` 并链接
+   `rnoh_async_storage` / `rnoh_clipboard`。
+4. `PackageProvider.cpp` 注册 `AsyncStoragePackage` / `ClipboardPackage`
+   （CAPI 架构下提供 `RNCAsyncStorage` / `RNCClipboard` 的 method map）。
+5. `PackageProvider.ets` 注册两个包的 ArkTS turbo module。
+
+JS 侧没有直接 import 包的 JS 入口，而是像 `imagePicker.ts` 一样通过
+`global.__turboModuleProxy` 取 `RNCAsyncStorage` / `RNCClipboard`：RN 0.72 的
+`TurboModuleRegistry` 会先查 legacy `NativeModules` 表，RNOH 对每个名字都返回空
+stub，直接走 proxy 才能拿到 `PackageProvider.ets` 注册的模块。README 里有说明，
+`src/native/asyncStorage.ts` 和 `src/native/clipboard.ts` 的注释也记录了原因。
 
 ## 验证
 
 - `npx tsc --noEmit`：通过。
-- `npx jest`：10 个测试文件、57 个用例通过。新增
-  `__tests__/capabilitiesScreen.test.tsx` 覆盖 14 行的顺序与标题、状态标签、
-  未实现行没有按钮、选图/解码的调用与行内结果、模块缺失时报错、返回回调；
-  `__tests__/App.test.tsx` 覆盖首屏进入能力页再返回。
-- 真机（HarmonyOS，1260×2720）：安装 RN HAP 后从首屏「平台能力」进入本页，
-  `uitest dumpLayout` 核对 14 行标题/说明/顺序与 KMP 一致，`返回` 回列表。
-- 「从相册选图」真机点按会拉起系统照片选择器（界面显示「仅可访问所选图片」，
-  即零相册权限），取消后行内显示 `已取消选图`；两条可用项在页面底部的状态
-  （`可用` + 按钮）见 `docs/evidence/ui-parity/capabilities-available-rows.jpg`。
-- 与 KMP 版能力页并排的证据：`docs/evidence/ui-parity/capabilities.png`
-  （左：KMP 参考实现，基线；右：本单 RN 构建，同一台设备、浅色主题、页面顶部
-  同一滚动位置）。KMP 的行更高，因为它的每一行都有一个可点的操作按钮；RN 骨架
-  里未实现的行用一行灰字代替按钮，这是两边唯一的结构差异。
+- `npx eslint src __tests__`：通过（0 error / 0 warning）。
+- `npx jest`：13 个测试文件、70 个用例通过。新增：
+  - `__tests__/urlOpener.test.ts`：http(s) 放行、非 http(s) 在调用平台前拒绝、
+    平台失败转成回显原因。
+  - `__tests__/asyncStorage.test.ts`：读、缺失 key → `null`、模块错误、写/删调用形状、
+    模块未注册的明确报错。
+  - `__tests__/clipboard.test.ts`：写/读调用、拒绝对象转成可读原因、模块未注册。
+  - `__tests__/capabilitiesScreen.test.tsx`：14 行顺序、三种状态、`limited` 行
+    有按钮和限制说明、未实现行没有按钮、三项能力的调用与行内回显。
+- 真机（1260×2720，浅色主题）：每次只装一项能力再验（按作者要求的
+  链接 → 存储 → 剪贴板顺序）。基线是 `d596e7a` 的 HAP；改后是本单 HEAD 的 HAP。
+  - 基线：本地存储、打开外部链接、剪贴板三行都是「未实现 / RN 版本暂未实现」
+    （[before-capabilities-top.png](../evidence/capabilities/before-capabilities-top.png)、
+    [before-capabilities-url-clipboard.png](../evidence/capabilities/before-capabilities-url-clipboard.png)）。
+  - 改后：三行分别可用 / 可用 / 部分可用，行内回显见
+    [after-capabilities-top.png](../evidence/capabilities/after-capabilities-top.png)、
+    [after-capabilities-url-clipboard.png](../evidence/capabilities/after-capabilities-url-clipboard.png)。
+  - 其余 9 行仍全部显示「未实现」，没有按钮。
+
+## 与 KMP 版的三处有意差异
+
+1. **剪贴板状态**：KMP 显示「可用」（它有 PasteButton）；RN 显示「部分可用」，
+   原因见上。
+2. **回调细节**：KMP 的能力枚举把 `readNeedsPasteControl` 交给页面额外插一个
+   PasteButton；RNOH 没有对应的嵌入方式，因此只保留按钮 + 限制说明。
+3. **其他 9 行**：依旧没有实现，也没有为页面好看加占位依赖。
 
 ## 后续
 
-其余 12 项需要各自的平台能力，按 KMP 的 `PlatformCapabilities` 接口逐项移植
-（本地存储、目录、设备信息、网络、震动、分享、外链、剪贴板、动态权限、
-BLE、WiFi、相册写入）。在实现之前，本页保持「未实现」并在
-`src/data/capabilities.ts` 里改一行 `status` 即可点亮对应行。
+其余 9 项（存储目录、设备信息、网络、震动、分享、动态权限、BLE、WiFi、相册写入）
+仍按 KMP 的 `PlatformCapabilities` 接口逐项移植；在实现之前，本页保持
+「未实现」并在 `src/data/capabilities.ts` 里改对应行的 `status` / `action` 即可。
+剪贴板若要变成完全可用，需要在 RNOH 里新增一个包装 ArkTS `PasteButton` 的自定义
+组件，并把一次性的读取结果回传给 JS（KMP 用的是 nativeEmbeds）。
