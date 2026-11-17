@@ -1,13 +1,14 @@
 # 平台能力页
 
-能力页从骨架推进到三批真实能力。14 行的名称、说明、顺序仍与 KMP 版
+能力页从骨架推进到五批真实能力。14 行的名称、说明、顺序仍与 KMP 版
 （`CapabilitiesScreen.kt` 真机 dump）一致；页面结构也还是 KMP 的
 `名称 + 说明 + 右上状态 + 下方操作按钮 + 行内结果`：
 
-- **可用**（10 行）：本地存储、存储目录、设备信息、网络状态、震动/触觉、
-  系统分享、打开外部链接、动态权限、从相册选图、图片解析二维码。
+- **可用**（12 行）：本地存储、存储目录、设备信息、网络状态、震动/触觉、
+  系统分享、打开外部链接、动态权限、蓝牙 LE、保存图片到相册、从相册选图、
+  图片解析二维码。
 - **部分可用**（1 行）：剪贴板。写入可用，读取被鸿蒙的系统权限限制，行内写明原因。
-- **未实现**（2 行）：WiFi、保存图片到相册，继续显示「未实现」，没有按钮。
+- **未实现**（1 行）：WiFi，继续显示「未实现」，没有按钮。
 
 首屏、购物车、扫码页的现有对齐没有改动。
 
@@ -25,14 +26,18 @@
 | `src/native/storageDirectories.ts` | `CapabilityProbe` 的 `readDirectories` 封装 + 7 行的静态 note 映射 |
 | `src/native/haptics.ts` | `CapabilityProbe` 的 `vibrateHaptic` 封装（返回回退说明） |
 | `src/native/systemShare.ts` | `CapabilityProbe` 的 `shareText` 封装 + 分享文本 |
-| `src/native/permissions.ts` | 8 个权限的定义、四态文案、`CapabilityProbe` 的三个权限方法封装 |
+| `src/native/permissions.ts` | 8 个权限的定义、四态文案、`CapabilityProbe` 的三个权限方法封装；保存到相册的 `去设置` 也复用这里的 `openPermissionSettings` |
+| `src/native/imageSave.ts` | `ImageSave` turbo module 的 JS 封装：结构化结果、模块缺失说明、`qrSaveTitle` |
+| `src/qr/qrPng.ts` | 把二维码矩阵编码成灰度 PNG（含 4 模块静区，PNG/CRC/Adler-32 全在 JS 里） |
 | `src/data/directories.ts` | 7 个目录的中文标签（与 KMP 的 `DirectoryKind.label` 一致） |
 | `harmony/entry/oh-package.json5` | 新增 async-storage、clipboard 两个 har 依赖（前一批） |
 | `harmony/entry/src/main/cpp/PackageProvider.cpp` | 注册两个包的 C++ method map（CAPI 架构） |
-| `harmony/entry/src/main/ets/PackageProvider.ets` | 注册两个包的 ArkTS turbo module，以及本单的 `CapabilityProbePackage` |
+| `harmony/entry/src/main/ets/PackageProvider.ets` | 注册两个包的 ArkTS turbo module，以及本单的 `CapabilityProbePackage` 和 `ImageSavePackage` |
 | `harmony/entry/src/main/ets/capabilities/CapabilityProbeTurboModule.ets` | `@ohos.deviceInfo` / `@ohos.net.connection` / `Context` + `@ohos.file.fs` 的真实读取，以及 `@ohos.vibrator`、ShareKit、`@ohos.abilityAccessCtrl` 的调用 |
+| `harmony/entry/src/main/ets/image/ImageSaveTurboModule.ets` | `WRITE_IMAGEVIDEO` 申请 → 缓存 PNG → `photoAccessHelper.createAsset` → 写入并读回校验 |
+| `harmony/entry/src/main/cpp/ImageSaveTurboModule.h` | `ImageSave` 的 `saveImage` C++ method map |
 | `harmony/entry/src/main/cpp/CapabilityProbeTurboModule.h` | `CapabilityProbe` 八个 Promise 方法的 C++ method map |
-| `harmony/entry/src/main/module.json5` | `GET_NETWORK_INFO`、两个公共目录、`VIBRATE` 和四个动态权限的声明 |
+| `harmony/entry/src/main/module.json5` | `GET_NETWORK_INFO`、两个公共目录、`VIBRATE`、四个动态权限、`WRITE_IMAGEVIDEO` 的声明 |
 
 ## 状态规则
 
@@ -415,6 +420,59 @@ issue 列了 `@react-native-oh-tpl/react-native-haptic-feedback@2.2.0-0.0.1`、
 | 连接失败 | — | `after-bluetooth-timeout.png` 具体的超时原因 |
 | 蓝牙关闭 | — | `after-bluetooth-off.png` `蓝牙已关闭，请先打开系统蓝牙再扫描` |
 
+## 第五批：保存图片到相册（`image-save`）
+
+本批把 `保存图片到相册` 从「未实现」变成真实的相册写入，和二维码页的
+「保存到相册」是同一个能力、同一套实现：
+
+1. JS 用 `src/qr/qrPng.ts` 把二维码矩阵编码成灰度 PNG（4 模块静区，
+   PNG/CRC/Adler-32 全在 JS 里；`__tests__/qrPng.test.ts` 用 upng-js 解码后再用
+   jsqr 扫回原文，证明文件可扫）。
+2. 本 App 自己的 `ImageSave` ArkTS turbo module：
+   `WRITE_IMAGEVIDEO` 运行时申请 → 缓存临时 PNG →
+   `photoAccessHelper.createAsset(PhotoType.IMAGE, 'png', {title})` →
+   `fs.openSync/writeSync/closeSync` → **读回校验字节数与 PNG 文件头** → 删临时文件。
+3. 成功行内显示 `已保存到相册（KMP-RN-QR-…）`；权限被拒显示上一批的
+   `被拒绝了；这个平台不会再弹框，点「去设置」`，并多一个同样的「去设置」按钮；
+   平台写入失败显示原始 code / message，不假装成功。
+
+`WRITE_IMAGEVIDEO` 是 `user_grant` + `system_basic` 的 ACL 权限：
+`module.json5` 已声明（`reason` + `usedScene`），本机调试 profile 需要重新生成后才能
+带上 `acls.allowed-acls`（见 [harmony-setup.md](../harmony-setup.md) 的签名条目）。
+签名材料不进仓库，`build-profile.json5` 的 `signingConfigs` 仍是 `[]`。
+Android / iOS 没有对应的保存模块，行内会如实显示「本实现只接了 HarmonyOS」。
+
+### 检查
+
+- `npx tsc --noEmit`：通过。
+- `npx eslint src __tests__`：通过（0 error / 0 warning）。
+- `npx jest`：24 个测试文件、175 个用例通过。本批新增：
+  - `__tests__/qrPng.test.ts`（11 个用例）：PNG 签名/尺寸/静区/黑模块、jsqr 扫回
+    英文与中文、矩阵不完整与非正 scale 拒绝、scale 夹取、标题的时间戳。
+  - `__tests__/imageSave.test.ts`（9 个用例）：成功结果、拒绝与平台失败可区分、
+    模块未注册、空 base64 / 空标题、原生 reject、成功但缺 URI、非法结构。
+  - `__tests__/qrScreen.test.tsx`（7 个用例）：按钮不再是「不可用」、真实 PNG 可扫回、
+    成功后文案、拒绝后「去设置」、平台失败原因、模块缺失、空内容禁用按钮。
+  - `__tests__/capabilitiesScreen.test.tsx`：状态列表加入 `image-save`，并覆盖
+    能力页保存成功、拒绝后「去设置」、写入失败三个分支。
+  - `__tests__/permissions.test.ts`：`openAlbumWritePermissionSettings` 走同一个原生
+    `openPermissionSettings('photo_write')`。
+
+### 验收证据
+
+截图在 `docs/evidence/qr/save/`；基线是本单开始前的 `main`（`4968d75`）安装包，
+改后是同一台机器、同一浅色主题、同一页面位置的 HAP。
+
+| 场景 | 基线（before） | 改后（after） |
+| --- | --- | --- |
+| 二维码页保存区 | `before-qr-save.png`「保存到相册在本版本不可用」 | `after-qr-saved.png` 可用按钮 + `已保存到相册` |
+| 权限弹框 | — | `after-qr-permission-dialog.png` 系统 WRITE_IMAGEVIDEO 弹框 |
+| 相册里的图 | — | `after-album-photo.png` 系统相册里新保存的二维码 |
+| 能力页 `image-save` 行 | `before-capability-row.png`「未实现」 | `after-capability-row.png`「可用」+ 保存按钮 |
+| 能力页保存结果 | — | `after-capability-saved.png` 行内 `已保存到相册（…）` |
+| 拒绝权限 | — | `after-qr-denied.png` 拒绝文案 + 「去设置」 |
+| 去设置 | — | `after-qr-settings.png` 系统「图片和视频权限」页（允许写入 / 不允许 / 确定） |
+
 ## 与 KMP 版的几处有意差异
 
 1. **剪贴板状态**：KMP 显示「可用」（它有 PasteButton）；RN 显示「部分可用」，
@@ -426,14 +484,16 @@ issue 列了 `@react-native-oh-tpl/react-native-haptic-feedback@2.2.0-0.0.1`、
    因此行内是说明而不是路径。
 4. **震动回退的文案**：与 KMP 相同（物理反馈被系统触感开关忽略、改用通知场景
    振动），只是 RN 版把这句话放在行内结果里，而不是 KMP 的 `Ok` 消息。
-5. **其余 2 行**：WiFi、相册写入依旧没有实现，也没有为页面好看加占位依赖。
+5. **其余 1 行**：WiFi 依旧没有实现，也没有为页面好看加占位依赖。保存图片到相册
+   RN 版与 KMP 版走同一条 `WRITE_IMAGEVIDEO` + `createAsset` 路径；KMP 的
+   `SaveButton` 备选没有被 RN 采用，原因见本页第五批与 `docs/features/qrcode.md`。
 6. **蓝牙列表的失败文案**：KMP 版把连接失败原因写在卡片里；RN 版同样行内展示，
    但超时由 JS 侧 15 秒兜底（ArkTS 适配版的 `connectToDevice` 只在连上时 resolve，
    不会自己超时），这是适配包的行为差异，不是页面文案差异。
 
 ## 后续
 
-其余 2 项（WiFi、相册写入）仍按 KMP 的 `PlatformCapabilities` 接口逐项移植；
+其余 1 项（WiFi）仍按 KMP 的 `PlatformCapabilities` 接口逐项移植；
 在实现之前，本页保持「未实现」并在 `src/data/capabilities.ts` 里改对应行的
 `status` / `action` 即可。
 剪贴板若要变成完全可用，需要在 RNOH 里新增一个包装 ArkTS `PasteButton` 的自定义

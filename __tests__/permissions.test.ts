@@ -7,6 +7,7 @@
 import {beforeEach, expect, it, jest} from '@jest/globals';
 
 import {
+  openAlbumWritePermissionSettings,
   openPermissionSettings,
   PERMISSION_PLATFORM_NOTE,
   PERMISSIONS,
@@ -179,4 +180,13 @@ it('rejects with a clear reason when the module is not registered', async () => 
   await expect(readPermissionState('camera')).rejects.toThrow(
     'CapabilityProbe 模块没有注册（权限方法不存在）',
   );
+});
+
+it('opens the album-write permission settings through the same native call', async () => {
+  const probe = fakeProbe();
+  probe.openPermissionSettings.mockImplementation(() => Promise.resolve());
+  mockTurboModule.mockReturnValue(probe);
+
+  await expect(openAlbumWritePermissionSettings()).resolves.toBeUndefined();
+  expect(probe.openPermissionSettings).toHaveBeenCalledWith('photo_write');
 });

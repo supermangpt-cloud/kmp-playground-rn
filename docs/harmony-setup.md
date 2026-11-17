@@ -21,13 +21,13 @@ dependencies or its in-repo `react_native_openharmony` module.
 | `harmony/oh-package.json5` | Root ohpm project; `overrides` pin `@rnoh/react-native-openharmony` to `0.72.140` for the SVG adaptation's har. |
 | `harmony/entry/build-profile.json5` | Entry module: stage mode, `externalNativeOptions` pointing at the CMake file, `arm64-v8a` only. |
 | `harmony/entry/oh-package.json5` | Dependencies `@rnoh/react-native-openharmony: "0.72.140"` from the ohpm registry and the manually linked `@react-native-oh-tpl/react-native-webview` / `@react-native-oh-tpl/react-native-svg` / `@react-native-oh-tpl/react-native-image-picker` / `@react-native-oh-tpl/async-storage` / `@react-native-oh-tpl/clipboard` hars. |
-| `harmony/entry/src/main/module.json5` | Entry ability, pages profile, `ohos.permission.INTERNET`, `GET_NETWORK_INFO` for the capability page's network row, the two `user_grant` public-directory permissions (with `reason` + `usedScene`) for its storage-directory card, `VIBRATE` for its haptics row, the four `user_grant` permissions its dynamic-permission card can query and request (`MICROPHONE`, `LOCATION` + `APPROXIMATELY_LOCATION`, `READ_CALENDAR`, `ACCESS_BLUETOOTH`, each with `reason` + `usedScene`), the camera permission used by the self-drawn scan page (`CAMERA`, with `reason` + `usedScene`), the accelerometer permission RNOH's dev-menu shake detector asks for, start window. |
+| `harmony/entry/src/main/module.json5` | Entry ability, pages profile, `ohos.permission.INTERNET`, `GET_NETWORK_INFO` for the capability page's network row, the two `user_grant` public-directory permissions (with `reason` + `usedScene`) for its storage-directory card, `VIBRATE` for its haptics row, the four `user_grant` permissions its dynamic-permission card can query and request (`MICROPHONE`, `LOCATION` + `APPROXIMATELY_LOCATION`, `READ_CALENDAR`, `ACCESS_BLUETOOTH`, each with `reason` + `usedScene`), the camera permission used by the self-drawn scan page (`CAMERA`, with `reason` + `usedScene`), `WRITE_IMAGEVIDEO` (`reason` + `usedScene`) for the QR page's album save (an ACL-restricted `system_basic` permission; the declaration is required before the runtime request, the ACL itself lives only in the local debug profile), the accelerometer permission RNOH's dev-menu shake detector asks for, start window. |
 | `harmony/entry/src/main/ets/entryability/EntryAbility.ets` | Extends RNOH's `RNAbility`; loads `pages/Splash` first. |
 | `harmony/entry/src/main/ets/pages/Splash.ets` | Native splash (logo, `KMP RN Demo`, `React Native`); after `SPLASH_MILLIS = 1000` it replaces itself with `pages/Index`. |
 | `harmony/entry/src/main/ets/pages/Index.ets` | RNOH `RNApp`; app key `KmpPlaygroundRn`, CAPI architecture enabled, Metro/sandbox/resource bundle providers. |
-| `harmony/entry/src/main/ets/PackageProvider.ets` | ArkTS native package list; registers the WebView, image-picker, async-storage, clipboard and ble-plx adaptations' ArkTS packages plus the app's own `ScanKit` and `CapabilityProbe` packages (see [features/webview.md](features/webview.md) and [features/capabilities.md](features/capabilities.md)). The SVG adaptation is C++-only and is registered from `PackageProvider.cpp`. |
+| `harmony/entry/src/main/ets/PackageProvider.ets` | ArkTS native package list; registers the WebView, image-picker, async-storage, clipboard and ble-plx adaptations' ArkTS packages plus the app's own `ScanKit`, `CapabilityProbe` and `ImageSave` packages (see [features/webview.md](features/webview.md) and [features/capabilities.md](features/capabilities.md)). The SVG adaptation is C++-only and is registered from `PackageProvider.cpp`. |
 | `harmony/entry/src/main/cpp/CMakeLists.txt` | Builds `librnoh_app.so` from RNOH sources in `entry/oh_modules` plus `PackageProvider.cpp` and `RNOHAppNapiBridge.cpp`, and links the WebView, SVG, async-storage and clipboard adaptations' `rnoh_webview` / `rnoh_svg` / `rnoh_async_storage` / `rnoh_clipboard` targets. |
-| `harmony/entry/src/main/cpp/PackageProvider.cpp` | C++ native package list; registers `WebViewPackage`, `SVGPackage`, `AppPackage` (the app's Scan Kit bridge and the image-picker / ble-plx turbo module method maps, `ScanKitTurboModule.h` / `ImagePickerTurboModule.h` / `BlePlxTurboModule.h`), `AsyncStoragePackage` and `ClipboardPackage`. |
+| `harmony/entry/src/main/cpp/PackageProvider.cpp` | C++ native package list; registers `WebViewPackage`, `SVGPackage`, `AppPackage` (the app's Scan Kit bridge, album writer and the image-picker / ble-plx turbo module method maps, `ScanKitTurboModule.h` / `ImageSaveTurboModule.h` / `ImagePickerTurboModule.h` / `BlePlxTurboModule.h`), `AsyncStoragePackage` and `ClipboardPackage`. |
 | `harmony/entry/src/main/ets/pages/ScanPage.ets` | Standalone `@Entry` scan page: Scan Kit `customScan` on an `XComponent` surface, camera permission handling and the emitter result back to the `ScanKit` turbo module (see [features/scan.md](features/scan.md)). |
 | `harmony/entry/src/main/resources/rawfile/` | `bundle.harmony.js` and assets generated by `npm run dev`; ignored by git. |
 
@@ -195,6 +195,18 @@ compile), because the full iOS app cannot be built on Xcode 27 here.
   generate` created a `com.example.kmp.rn.harmony` debug profile; the block is
   kept in `~/.ohos/dsh-signing-rn.json5` and injected by
   `scripts/inject-signing.py` for a build. Nothing is committed.
+- **An ACL permission needs a regenerated debug profile.** Declaring
+  `ohos.permission.WRITE_IMAGEVIDEO` in `module.json5` is necessary but not
+  sufficient: the permission is `user_grant` + `system_basic`, so the signing
+  profile must also carry `acls.allowed-acls: ["ohos.permission.WRITE_IMAGEVIDEO"]`.
+  A profile generated before the declaration has an empty `acls` and the runtime
+  request fails with `201 Permission denied`. After adding the declaration,
+  rerun `cd harmony && devecocli signature generate --force` (the CLI prints
+  "You are applying for restricted ACL permissions: WRITE_IMAGEVIDEO…") and
+  check the new `.p7b` with
+  `openssl cms -verify -noverify -inform DER -in <profile>.p7b`; the repo's
+  `signingConfigs` stays empty. The ACL profile is for local debugging and
+  device verification only.
 - **Splash routing.** `pages/Splash` is first in `main_pages.json` and the
   ability's `getPagePath()` returns it. `router.replaceUrl({url: 'pages/Index'})`
   replaces the page (no back stack), so back on the product list exits the app.

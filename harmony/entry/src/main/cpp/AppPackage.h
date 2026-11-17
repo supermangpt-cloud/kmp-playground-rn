@@ -6,6 +6,7 @@
 #include "BlePlxTurboModule.h"
 #include "CapabilityProbeTurboModule.h"
 #include "ImagePickerTurboModule.h"
+#include "ImageSaveTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
 #include "ScanKitTurboModule.h"
 #include "RNOH/Package.h"
@@ -53,6 +54,12 @@ class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
     // architecture needs for the capability page's 蓝牙 LE card.
     if (name == "BlePlx") {
       return std::make_shared<BlePlxTurboModule>(ctx, name);
+    }
+    // The app's album writer: PNG bytes -> photoAccessHelper.createAsset
+    // behind the WRITE_IMAGEVIDEO ACL, used by the QR page and the
+    // 保存图片到相册 capability row.
+    if (name == "ImageSave") {
+      return std::make_shared<ImageSaveTurboModule>(ctx, name);
     }
     return nullptr;
   }

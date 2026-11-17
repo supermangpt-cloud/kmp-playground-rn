@@ -7,11 +7,12 @@
  * react-native-qrcode-svg; the four-module quiet zone is passed in pixels,
  * which is the unit that component uses.
  *
- * Save to album is not available in this RN stack. The button reports the
- * reason instead of pretending success; `docs/features/qrcode.md` records what
- * was tested and what a future dependency would have to provide.
+ * Save to album writes the generated matrix as a PNG through the app's own
+ * `ImageSave` ArkTS module (`photoAccessHelper.createAsset` behind the
+ * WRITE_IMAGEVIDEO ACL). `docs/features/qrcode.md` records the permission and
+ * the device verification.
  */
-import React, {useMemo, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {
   Pressable,
   ScrollView,
@@ -30,6 +31,12 @@ import {
   QR_ERROR_CORRECTION_LEVELS,
   QrErrorCorrection,
 } from '../qr/qrCode';
+import {qrPngBase64} from '../qr/qrPng';
+import {qrSaveTitle, savePngToAlbum} from '../native/imageSave';
+import {
+  openAlbumWritePermissionSettings,
+  permissionAdvice,
+} from '../native/permissions';
 import {colors} from '../ui/theme';
 
 const DEFAULT_VALUE = 'https://example.com';
@@ -37,22 +44,73 @@ const DEFAULT_VALUE = 'https://example.com';
 /** Side length of the rendered code, quiet zone included. */
 const CODE_SIZE = 220;
 
-/** What the save button says. The full reason is in docs/features/qrcode.md. */
-const SAVE_UNAVAILABLE_REASON =
-  '本版本不支持保存到相册：camera-roll 适配包无法在 RNOH 0.72.140 上编译，' +
-  '且没有把 PNG 写进应用沙箱的文件能力。详见 docs/features/qrcode.md。';
-
 type Props = {
   onBack: () => void;
 };
 
+type SaveState = {
+  saving: boolean;
+  /** `denied` means the platform refused the album permission, not a failure. */
+  denied?: boolean;
+  message?: string;
+};
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export default function QrCodeScreen({onBack}: Props): JSX.Element {
   const [text, setText] = useState(DEFAULT_VALUE);
   const [level, setLevel] = useState<QrErrorCorrection>('M');
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [save, setSave] = useState<SaveState>({saving: false});
 
   const encoding = useMemo(() => encodeQr(text, level), [text, level]);
   const code = encoding.ok ? encoding.code : null;
+
+  /**
+   * 「保存到相册」: encode the matrix to a PNG in JS, then let the native module
+   * request WRITE_IMAGEVIDEO, create the asset and write the bytes. The result
+   * object distinguishes a refusal (show 去设置) from a platform failure.
+   */
+  const saveToAlbum = useCallback(async () => {
+    if (encoding.ok !== true || save.saving) {
+      return;
+    }
+    setSave({saving: true});
+    try {
+      const base64 = qrPngBase64(encoding.code);
+      const result = await savePngToAlbum(base64, qrSaveTitle());
+      if (result.saved) {
+        setSave({saving: false, message: '已保存到相册'});
+      } else if (result.permissionDenied) {
+        setSave({
+          saving: false,
+          denied: true,
+          message: permissionAdvice('denied'),
+        });
+      } else {
+        setSave({saving: false, message: `保存失败：${result.reason}`});
+      }
+    } catch (error) {
+      setSave({saving: false, message: `保存失败：${messageOf(error)}`});
+    }
+  }, [encoding, save.saving]);
+
+  /** 「去设置」 after a denial; the platform will not show its dialog again. */
+  const openSaveSettings = useCallback(async () => {
+    try {
+      await openAlbumWritePermissionSettings();
+      setSave(current => ({
+        ...current,
+        message: '已打开系统设置页；回到 App 后重新点「保存到相册」',
+      }));
+    } catch (error) {
+      setSave(current => ({
+        ...current,
+        message: `打开设置失败：${messageOf(error)}`,
+      }));
+    }
+  }, []);
 
   return (
     <View style={styles.screen} testID="qr-screen">
@@ -138,18 +196,35 @@ export default function QrCodeScreen({onBack}: Props): JSX.Element {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="保存到相册"
-            onPress={() => setSaveMessage(SAVE_UNAVAILABLE_REASON)}
+            accessibilityState={{disabled: save.saving || code === null}}
+            disabled={save.saving || code === null}
+            onPress={saveToAlbum}
             style={({pressed}) => [
               styles.saveButton,
-              styles.saveButtonDisabled,
+              code === null && styles.saveButtonDisabled,
               pressed && styles.pressed,
             ]}
             testID="qr-save">
-            <Text style={styles.saveButtonText}>保存到相册</Text>
+            <Text style={styles.saveButtonText} testID="qr-save-label">
+              {save.saving ? '保存中…' : '保存到相册'}
+            </Text>
           </Pressable>
           <Text style={styles.saveHint} testID="qr-save-result">
-            {saveMessage ?? '保存到相册在本版本不可用'}
+            {save.message ?? '保存为 PNG 并写入系统相册'}
           </Text>
+          {save.denied === true ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="打开相册写入权限设置"
+              onPress={openSaveSettings}
+              style={({pressed}) => [
+                styles.saveSettingsButton,
+                pressed && styles.pressed,
+              ]}
+              testID="qr-save-settings">
+              <Text style={styles.saveSettingsText}>去设置</Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -264,12 +339,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
     paddingVertical: 14,
+    backgroundColor: colors.accent,
   },
   saveButtonDisabled: {
     backgroundColor: colors.divider,
   },
   saveButtonText: {
-    color: colors.textHint,
+    color: colors.surface,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -279,6 +355,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
+  },
+  saveSettingsButton: {
+    alignSelf: 'center',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+  },
+  saveSettingsText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '600',
   },
   pressed: {
     opacity: 0.6,
