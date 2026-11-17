@@ -34,8 +34,9 @@ export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
     // without PasteButton, which the page states instead of hiding.
     new ClipboardPackage(ctx),
     // react-native-ble-plx's HarmonyOS adaptation: the `BlePlx` turbo module
-    // over @ohos.bluetooth.ble, behind the capability page's 蓝牙 LE card. It
-    // is ArkTS-only, so no C++ package is registered for it.
+    // over @ohos.bluetooth.ble, behind the capability page's 蓝牙 LE card. The
+    // har has no C++ spec, so AppPackage adds its method map
+    // (BlePlxTurboModule.h); there is no CMake entry to add.
     new BlePlxPackage(ctx),
     // The app's own Scan Kit bridge: the self-drawn `pages/ScanPage` scanner
     // (`customScan`), the system-scan fallback and native image decoding.
