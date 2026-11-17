@@ -15,13 +15,21 @@
  * instead of offering a button that does nothing: `unimplemented` rows print
  * `RN 版本暂未实现`.
  *
- * Ten rows are `available` now: local storage, the storage-directory card,
+ * Eleven rows are `available` now: local storage, the storage-directory card,
  * device information, network status, haptics, system share, URL opening, the
- * dynamic-permission card and the two image rows. The clipboard is `limited`:
- * writing works, but HarmonyOS only grants clipboard reads to the system
- * PasteButton. Three rows are interactive rather than a single button
- * (`directories`, `haptics`, `permissions`), which the screen renders as their
- * own bodies.
+ * dynamic-permission card, Bluetooth LE and the two image rows. The clipboard
+ * is `limited`: writing works, but HarmonyOS only grants clipboard reads to
+ * the system PasteButton. Four rows are interactive rather than a single
+ * button (`directories`, `haptics`, `permissions`, `bluetooth-le`), which the
+ * screen renders as their own bodies.
+ *
+ * Bluetooth LE is `available` because the adapted `react-native-ble-plx`
+ * really scans and connects on the device (see
+ * `docs/features/capabilities.md` §7 and the evidence under
+ * `docs/evidence/capabilities/bluetooth/`). Its two HarmonyOS properties — the
+ * scan result's per-app virtual address, and the share of nearby random
+ * addresses that cannot be connected — are printed inside the card, not
+ * hidden behind the status chip.
  *
  * In particular 保存图片到相册 is `unimplemented`: the QR page has a 保存到相册
  * button, but that button only explains why the RN stack cannot write to the
@@ -42,7 +50,8 @@ export type CapabilityAction =
   | 'directories'
   | 'haptics'
   | 'system-share'
-  | 'permissions';
+  | 'permissions'
+  | 'bluetooth-le';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -135,7 +144,8 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'bluetooth-le',
     title: '蓝牙 LE',
     detail: '扫描附近设备，连接 / 断开',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'bluetooth-le',
   },
   {
     id: 'wifi-network',

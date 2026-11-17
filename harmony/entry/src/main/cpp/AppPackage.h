@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 
+#include "BlePlxTurboModule.h"
 #include "CapabilityProbeTurboModule.h"
 #include "ImagePickerTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
@@ -22,8 +23,8 @@ namespace rnoh {
  * way in `RNOHCoreTurboModuleFactoryDelegate`.
  *
  * The adapted libraries ship their own C++ packages and delegates, so this one
- * stays as the place for app modules that only have an ArkTS implementation
- * (the Scan Kit bridge and image-picker's method map).
+ * stays as the place for modules that only have an ArkTS implementation: the
+ * Scan Kit bridge, image-picker's and ble-plx's method maps.
  */
 class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
  public:
@@ -46,6 +47,12 @@ class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
     // dynamic-permission rows.
     if (name == "CapabilityProbe") {
       return std::make_shared<CapabilityProbeTurboModule>(ctx, name);
+    }
+    // react-native-ble-plx's HarmonyOS adaptation ships the `BlePlx` ArkTS
+    // module and no C++ spec; this subclass supplies the method map the CAPI
+    // architecture needs for the capability page's 蓝牙 LE card.
+    if (name == "BlePlx") {
+      return std::make_shared<BlePlxTurboModule>(ctx, name);
     }
     return nullptr;
   }

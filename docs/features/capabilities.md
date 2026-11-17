@@ -7,7 +7,7 @@
 - **可用**（10 行）：本地存储、存储目录、设备信息、网络状态、震动/触觉、
   系统分享、打开外部链接、动态权限、从相册选图、图片解析二维码。
 - **部分可用**（1 行）：剪贴板。写入可用，读取被鸿蒙的系统权限限制，行内写明原因。
-- **未实现**（3 行）：蓝牙 LE、WiFi、保存图片到相册，继续显示「未实现」，没有按钮。
+- **未实现**（2 行）：WiFi、保存图片到相册，继续显示「未实现」，没有按钮。
 
 首屏、购物车、扫码页的现有对齐没有改动。
 
@@ -316,6 +316,105 @@ issue 列了 `@react-native-oh-tpl/react-native-haptic-feedback@2.2.0-0.0.1`、
 （第二批的 async-storage / clipboard 确实用了 issue 列的适配包；这一批是三个包
 都不满足规格，才没有用。）
 
+
+## 第四批：蓝牙 LE（`bluetooth-le`）
+
+本批把 `蓝牙 LE` 从「未实现」变成真实扫描 / 连接。只引入了 issue 指定的适配包
+`@react-native-oh-tpl/react-native-ble-plx@3.2.0-0.0.3`（`npm install --save-exact`），
+没有新增别的依赖，也没有自己写原生模块。
+
+### 10. 蓝牙 LE（`bluetooth-le`）
+
+- 行内结构：`扫描 / 停止` + 已发现台数，一行说明两个平台特性，下面是可滚动的设备列表，
+  每行 `设备名 / 虚拟地址 · RSSI` + `连接`（连上后变 `断开`）。
+- 权限：点「扫描」先用上一批的 `src/native/permissions.ts` 申请
+  `ohos.permission.ACCESS_BLUETOOTH`（`user_grant`，`module.json5` 已带
+  `reason` / `usedScene`）；被拒绝时行内显示「没有蓝牙权限：请到上方「动态权限」卡片的
+  蓝牙行点「去设置」打开后重试」，不会假装扫到 0 台。`APPROXIMATELY_LOCATION` 也在
+  `module.json5` 里（上一批为位置行声明）；Connectivity Kit 的「查找设备」指南写明
+  BLE 扫描只需要 `ACCESS_BLUETOOTH`，本页按此申请，没有额外弹位置权限。
+- 扫描：`BlePlx.startDeviceScan(null, {scanMode: 2})`，监听 `ScanEvent`；JS 侧按
+  `deviceId` 去重、按 RSSI 排序、每 400ms 合并一次再交给页面，避免每条广播都触发渲染。
+  列表按固定行高 48vp 做窗口化：只挂载可视窗口 + 余量（≤24 行），用上下占位 `View`
+  维持滚动高度，因此扫到几百台时也不会一次渲染几百行。
+- 连接：`connectToDevice(deviceId)`。ArkTS 侧只在 `STATE_CONNECTED` 时 resolve，
+  所以 JS 侧加了 15 秒超时（`CONNECT_TIMEOUT_MS`）；超时后若平台迟到的连接真的成功，
+  会再断开它，不让页面报失败却留着一个连接。失败按 `errorCode` / 平台 reason 分类成
+  超时 / 拒绝 / 无权限 / 未知，行内显示具体原因，不是一句「失败」。
+- 真实地址：没有 `GET_BLUETOOTH_PEERS_MAC`（`system_basic`）时 `ScanResult.deviceId`
+  是应用侧虚拟地址。卡片第一行说明写明「不是真实 MAC」，地址行按原样显示，不假装成 MAC。
+- 蓝牙关闭：点「扫描」先读平台状态，`PoweredOff` 时清空结果并显示
+  `蓝牙已关闭，请先打开系统蓝牙再扫描`，不会显示成「附近没有设备」。
+
+#### 依赖怎么接的
+
+1. `package.json` 固定 `@react-native-oh-tpl/react-native-ble-plx: 3.2.0-0.0.3`。
+2. `harmony/entry/oh-package.json5` 用
+   `file:../../node_modules/@react-native-oh-tpl/react-native-ble-plx/harmony/rn_bleplx.har`
+   引入 har。
+3. `PackageProvider.ets` 注册 har 的 `BlePlxPackage`（ArkTS turbo module `BlePlx`）。
+4. har 只有 ArkTS 实现，CAPI 架构下还必须要有 C++ method map：
+   `harmony/entry/src/main/cpp/BlePlxTurboModule.h` 列出模块方法，`AppPackage.h` 在
+   `name == "BlePlx"` 时返回它（与 image-picker 的接法相同）。少了这一步 RNOH 会抛
+   `Couldn't find Turbo Module 'BlePlx' on the CPP side.`
+5. har 的 `BlePlxModule.ts` 还 import 了只有 RNOH codegen 才会生成的
+   `@rnoh/react-native-openharmony/generated/ts`；本工程没有 codegen，所以
+   `scripts/inject-rnoh-codegen-stub.js` 在 `ohpm install` 之后写一个 type-only 的
+   `TM.BlePlx.Spec`（空 interface；模块自己的 `BlePlxInterface` 仍然约束每个方法），
+   CI 里也加了这一步。踩坑记录见 `docs/harmony-setup.md`。
+6. JS 侧没有用包的 `BleManager`：它经 RN 0.72 的 `TurboModuleRegistry` 先查 legacy
+   `NativeModules`，RNOH 对每个名字都返回空 stub（与 async-storage / clipboard /
+   image-picker 同因）。`src/native/bluetoothLe.ts` 直接通过
+   `global.__turboModuleProxy('BlePlx')` 取模块，并在其上补了超时、错误分类与扫描节流。
+
+#### 真机实测（HUAWEI Mate 60 Pro / API 26 / 浅色主题）
+
+- 行状态 `可用`；点「扫描」→ `ACCESS_BLUETOOTH` 已授权（上一批动态权限卡里申请过，
+  hilog `ACCESS_BLUETOOTH: state: 0`），开始扫描并显示 `扫描中… 已发现 N 台`。
+- 结果：4 秒内 141～146 台，约 40 秒累计 288 台（这台机器附近 BLE 广播非常密）。
+  列表内滑动可看到其余设备；每行 `设备名（或「未命名设备」）/ 地址 · RSSI` + `连接`。
+  地址是虚拟地址，例如 `98:B6:DF:A1:BD:A1`、`E2:8A:70:31:AF:9F`、
+  `68:8C:F2:80:38:CC`，与 issue 里 KMP 版看到的随机地址一致。
+- 连接成功：点 `68:8C:F2:80:38:CC` 行的「连接」→ 行内 `已连接 68:8C:F2:80:38:CC`，
+  该行按钮变成 `断开`。
+- 连接失败：点 `E2:8A:70:31:AF:9F` 行的「连接」→ 约 15 秒后
+  `连接失败：连接超时（15 秒内没有完成连接，鸿蒙上部分随机地址不可连接）`。
+  这正是 issue 说的「一半附近广播不可连接」，页面给出具体原因。
+- 关蓝牙再扫描：设置里关掉蓝牙后回到 App 点「扫描」→ 行内
+  `蓝牙已关闭，请先打开系统蓝牙再扫描`，设备列表清空且不再刷新，没有显示成
+  「附近没有设备」。
+
+#### 检查
+
+- `npx tsc --noEmit`：通过。
+- `npx eslint src __tests__ scripts`：通过（0 error / 0 warning）。
+- `npx jest`：21 个测试文件、143 个用例通过。本单新增：
+  - `__tests__/bluetoothLe.test.ts`（14 个用例）：状态映射、扫描去重 / 节流 / 排序、
+    扫描错误事件、停止并最后刷新一次、拒绝启动扫描、连接与断开、15 秒超时兜底、
+    错误分类（超时 / 拒绝 / 无权限 / 未知）、断开失败原因、平台断线监听。
+  - `__tests__/bluetoothCard.test.tsx`（9 个用例）：可用状态与两条平台说明、权限申请
+    → 设备行（名称 / 地址 / RSSI / 连接按钮）、大结果集窗口化（120 台只挂载 ≤32 行、
+    滚动切换窗口）、连接成功后按钮变「断开」、超时原因、权限步骤失败原因、
+    蓝牙已关闭、权限被拒绝、停止与平台断线回退。
+  - `__tests__/capabilitiesScreen.test.tsx`：蓝牙行改为「可用」，断言卡片自带扫描按钮、
+    没有单项能力按钮。
+- HarmonyOS 构建：`ohpm install --all` + `hvigorw ... assembleHap` 通过（未签名 HAP 与
+  本地签名 HAP 都构建过）；CI 的 harmony job 加了 codegen stub 步骤。
+
+#### 验收证据
+
+截图在 `docs/evidence/capabilities/bluetooth/`；基线是 `main`（`b34122b`），改后是同一台
+机器、同一浅色主题、同一页面滚动位置的 HAP。
+
+| 场景 | 基线（before） | 改后（after） |
+| --- | --- | --- |
+| 蓝牙行 | `before-bluetooth.png`「未实现」 | `after-bluetooth-idle.png`「可用」+ 扫描 + 两条平台说明 |
+| 扫描结果 | —（没有按钮） | `after-bluetooth-scanning.png` 扫描中 + N 台 + 设备行 |
+| 列表内滚动 | — | `after-bluetooth-scrolled.png` 在列表内滑动后的另一批设备 |
+| 连接成功 | — | `after-bluetooth-connected.png` `已连接 …` + 该行 `断开` |
+| 连接失败 | — | `after-bluetooth-timeout.png` 具体的超时原因 |
+| 蓝牙关闭 | — | `after-bluetooth-off.png` `蓝牙已关闭，请先打开系统蓝牙再扫描` |
+
 ## 与 KMP 版的几处有意差异
 
 1. **剪贴板状态**：KMP 显示「可用」（它有 PasteButton）；RN 显示「部分可用」，
@@ -327,11 +426,14 @@ issue 列了 `@react-native-oh-tpl/react-native-haptic-feedback@2.2.0-0.0.1`、
    因此行内是说明而不是路径。
 4. **震动回退的文案**：与 KMP 相同（物理反馈被系统触感开关忽略、改用通知场景
    振动），只是 RN 版把这句话放在行内结果里，而不是 KMP 的 `Ok` 消息。
-5. **其余 3 行**：蓝牙 LE、WiFi、相册写入依旧没有实现，也没有为页面好看加占位依赖。
+5. **其余 2 行**：WiFi、相册写入依旧没有实现，也没有为页面好看加占位依赖。
+6. **蓝牙列表的失败文案**：KMP 版把连接失败原因写在卡片里；RN 版同样行内展示，
+   但超时由 JS 侧 15 秒兜底（ArkTS 适配版的 `connectToDevice` 只在连上时 resolve，
+   不会自己超时），这是适配包的行为差异，不是页面文案差异。
 
 ## 后续
 
-其余 3 项（BLE、WiFi、相册写入）仍按 KMP 的 `PlatformCapabilities` 接口逐项移植；
+其余 2 项（WiFi、相册写入）仍按 KMP 的 `PlatformCapabilities` 接口逐项移植；
 在实现之前，本页保持「未实现」并在 `src/data/capabilities.ts` 里改对应行的
 `status` / `action` 即可。
 剪贴板若要变成完全可用，需要在 RNOH 里新增一个包装 ArkTS `PasteButton` 的自定义

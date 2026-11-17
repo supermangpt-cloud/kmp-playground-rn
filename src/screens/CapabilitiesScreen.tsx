@@ -25,6 +25,16 @@ import {
 import {DIRECTORY_LABELS} from '../data/directories';
 import {getItem, removeItem, setItem} from '../native/asyncStorage';
 import {
+  BleConnectFailure,
+  BleDevice,
+  connectDevice,
+  disconnectDevice,
+  onDeviceDisconnected,
+  readBluetoothState,
+  startScan,
+  stopScan,
+} from '../native/bluetoothLe';
+import {
   getString as readClipboard,
   setString as writeClipboard,
 } from '../native/clipboard';
@@ -82,6 +92,18 @@ type PermissionRowState = {
 };
 
 type PermissionsState = Record<string, PermissionRowState>;
+
+/** The 蓝牙 LE card's own state: the scan, its results and the live links. */
+type BluetoothState = {
+  scanning: boolean;
+  /** De-duplicated by `id` and sorted by RSSI; the page never holds the raw stream. */
+  devices: BleDevice[];
+  /** Device ids the platform reported as connected. */
+  connected: Record<string, boolean>;
+  /** The device whose connect/disconnect is running, if any. */
+  busyId?: string;
+  message?: {text: string; error: boolean};
+};
 
 /** One button of the 震动 / 触觉 row, in the KMP order. */
 const HAPTIC_STRENGTHS: readonly {strength: HapticStrength; label: string}[] = [
@@ -432,6 +454,167 @@ function PermissionsBody({
   );
 }
 
+/**
+ * One device row's fixed height, in dp. Windowing needs a constant row height,
+ * so the row is pinned to it instead of growing with the text.
+ */
+const BLUETOOTH_ROW_HEIGHT = 48;
+
+/** Rows rendered around the visible window: enough to cover a scroll step. */
+const BLUETOOTH_WINDOW_ROWS = 16;
+
+type BluetoothBodyProps = {
+  state: BluetoothState;
+  onScan: () => void;
+  onConnect: (device: BleDevice) => void;
+  onDisconnect: (device: BleDevice) => void;
+};
+
+/**
+ * The 蓝牙 LE card body: 扫描 / 停止, the two platform notes, then one row per
+ * advertisement with 连接 (or 断开 once linked).
+ *
+ * The result list is its own bounded `ScrollView` (240 vp, `nestedScrollEnabled`):
+ * a room with dozens of advertisements scrolls inside the card instead of
+ * pushing the rest of the page down, and the devices are already de-duplicated
+ * and throttled by `src/native/bluetoothLe.ts`. The address row is the
+ * HarmonyOS per-app virtual id — it is labelled as such rather than pretended
+ * to be a MAC.
+ */
+function BluetoothBody({
+  state,
+  onScan,
+  onConnect,
+  onDisconnect,
+}: BluetoothBodyProps): JSX.Element {
+  const scanning = state.scanning;
+  // The scan list can hold hundreds of addresses (288 unique ones were seen
+  // on this device). A plain map over all of them re-renders every row twice a
+  // second, so only the visible window plus a margin is mounted; spacers stand
+  // in for the rows above and below, which keeps the scroll bar honest.
+  const [scrollTop, setScrollTop] = useState(0);
+  const total = state.devices.length;
+  const first = Math.min(
+    Math.max(0, Math.floor(scrollTop / BLUETOOTH_ROW_HEIGHT) - 4),
+    Math.max(0, total - 1),
+  );
+  const last = Math.min(total, first + BLUETOOTH_WINDOW_ROWS + 8);
+  const visible = state.devices.slice(first, last);
+  return (
+    <View style={styles.bluetooth}>
+      <View style={styles.bluetoothHeader}>
+        <Text style={styles.bluetoothCount} testID="capability-bluetooth-count">
+          {scanning
+            ? `扫描中… 已发现 ${state.devices.length} 台`
+            : state.devices.length === 0
+            ? '尚未扫描'
+            : `共 ${state.devices.length} 台`}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={scanning ? '停止扫描' : '扫描附近的蓝牙设备'}
+          onPress={onScan}
+          style={({pressed}) => [
+            styles.bluetoothScanButton,
+            scanning && styles.bluetoothScanStop,
+            pressed && styles.pressed,
+          ]}
+          testID="capability-bluetooth-scan">
+          <Text style={styles.bluetoothScanText}>
+            {scanning ? '停止' : '扫描'}
+          </Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.bluetoothNote} testID="capability-bluetooth-note">
+        鸿蒙返回的地址是应用侧虚拟地址（没有 GET_BLUETOOTH_PEERS_MAC 时不是真实
+        MAC）；附近有一部分 BLE 广播不可连接，连接会等到超时。
+      </Text>
+
+      {state.message === undefined ? null : (
+        <Text
+          style={[
+            styles.bluetoothMessage,
+            state.message.error && styles.bluetoothMessageError,
+          ]}
+          testID="capability-bluetooth-message">
+          {state.message.text}
+        </Text>
+      )}
+
+      {state.devices.length === 0 ? (
+        <Text style={styles.bluetoothHint} testID="capability-bluetooth-hint">
+          {scanning ? '正在扫描…' : '点「扫描」列出附近的 BLE 广播'}
+        </Text>
+      ) : (
+        <ScrollView
+          style={styles.bluetoothList}
+          nestedScrollEnabled
+          scrollEventThrottle={100}
+          onScroll={event => setScrollTop(event.nativeEvent.contentOffset.y)}
+          testID="capability-bluetooth-devices">
+          {first === 0 ? null : (
+            <View style={{height: first * BLUETOOTH_ROW_HEIGHT}} />
+          )}
+          {visible.map(device => {
+            const connected = state.connected[device.id] === true;
+            const busy = state.busyId === device.id;
+            return (
+              <View
+                key={device.id}
+                style={styles.bluetoothRow}
+                testID={`capability-bluetooth-device-${device.id}`}>
+                <View style={styles.bluetoothRowText}>
+                  <Text style={styles.bluetoothName} numberOfLines={1}>
+                    {device.name ?? '（未命名设备）'}
+                  </Text>
+                  <Text style={styles.bluetoothAddress} numberOfLines={1}>
+                    {device.id}
+                    {device.rssi === undefined ? '' : ` · RSSI ${device.rssi}`}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${connected ? '断开' : '连接'}${
+                    device.name ?? device.id
+                  }`}
+                  disabled={busy}
+                  onPress={() =>
+                    connected ? onDisconnect(device) : onConnect(device)
+                  }
+                  style={({pressed}) => [
+                    styles.bluetoothConnectButton,
+                    connected && styles.bluetoothDisconnectButton,
+                    busy && styles.bluetoothConnectDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                  testID={`capability-bluetooth-connect-${device.id}`}>
+                  <Text
+                    style={[
+                      styles.bluetoothConnectText,
+                      connected && styles.bluetoothDisconnectText,
+                    ]}>
+                    {busy
+                      ? connected
+                        ? '断开中…'
+                        : '连接中…'
+                      : connected
+                      ? '断开'
+                      : '连接'}
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
+          {last >= total ? null : (
+            <View style={{height: (total - last) * BLUETOOTH_ROW_HEIGHT}} />
+          )}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   const [outcomes, setOutcomes] = useState<Record<string, RowOutcome>>({});
   const [directories, setDirectories] = useState<DirectoriesState>({
@@ -439,6 +622,11 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
     rows: [],
   });
   const [permissions, setPermissions] = useState<PermissionsState>({});
+  const [bluetooth, setBluetooth] = useState<BluetoothState>({
+    scanning: false,
+    devices: [],
+    connected: {},
+  });
   // The picker is modal and the button stays mounted while it is open; a ref
   // stops a second press from opening a second picker behind the first.
   const busy = useRef(false);
@@ -448,6 +636,10 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   // Each permission row keeps its own guard, so asking for one permission does
   // not block another row's 查询.
   const permissionBusy = useRef<Record<string, boolean>>({});
+  // The Bluetooth card's guards are separate from `busy`: a connect can wait
+  // up to 15 s for the platform while every other row stays usable.
+  const bluetoothBusy = useRef(false);
+  const bluetoothScanning = useRef(false);
 
   const setOutcome = useCallback((id: string, outcome: RowOutcome) => {
     setOutcomes(current => ({...current, [id]: outcome}));
@@ -935,6 +1127,182 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
     [setOutcome],
   );
 
+  /**
+   * 「扫描 / 停止」: asks for ACCESS_BLUETOOTH first, refuses to fake an empty
+   * list when Bluetooth is off, then starts the throttled scan.
+   */
+  const toggleBluetoothScan = useCallback(async () => {
+    if (bluetoothBusy.current) {
+      return;
+    }
+    if (bluetoothScanning.current) {
+      bluetoothScanning.current = false;
+      try {
+        await stopScan();
+      } catch {
+        // Nothing to stop any more; the button still has to return to 扫描.
+      }
+      setBluetooth(current => ({...current, scanning: false}));
+      return;
+    }
+    bluetoothBusy.current = true;
+    try {
+      const permission = await requestPermission('bluetooth');
+      if (permission !== 'granted') {
+        setBluetooth(current => ({
+          ...current,
+          message: {
+            text: '没有蓝牙权限：请到上方「动态权限」卡片的蓝牙行点「去设置」打开后重试',
+            error: true,
+          },
+        }));
+        return;
+      }
+      const power = await readBluetoothState();
+      if (power === 'off') {
+        // An empty list would look like "no devices nearby", which is wrong.
+        setBluetooth(current => ({
+          ...current,
+          devices: [],
+          scanning: false,
+          message: {text: '蓝牙已关闭，请先打开系统蓝牙再扫描', error: true},
+        }));
+        return;
+      }
+      await startScan({
+        onDevices: devices => setBluetooth(current => ({...current, devices})),
+        onError: text =>
+          setBluetooth(current => ({
+            ...current,
+            message: {text, error: true},
+          })),
+      });
+      bluetoothScanning.current = true;
+      setBluetooth(current => ({
+        ...current,
+        scanning: true,
+        devices: [],
+        message:
+          power === 'unknown'
+            ? {text: '平台返回的蓝牙状态是「未知」，扫描仍会尝试', error: false}
+            : undefined,
+      }));
+    } catch (error) {
+      // The reason is computed here, not inside the state updater: Hermes does
+      // not keep a catch binding alive for a closure React calls later, and
+      // reading it then throws `ReferenceError: Property 'error' does not exist`.
+      const text = messageOf(error);
+      bluetoothScanning.current = false;
+      setBluetooth(current => ({
+        ...current,
+        scanning: false,
+        message: {text, error: true},
+      }));
+    } finally {
+      bluetoothBusy.current = false;
+    }
+  }, []);
+
+  /** 「连接」: the failure reason comes from the wrapper, never a bare 失败. */
+  const connectBluetoothDevice = useCallback(async (device: BleDevice) => {
+    if (bluetoothBusy.current) {
+      return;
+    }
+    bluetoothBusy.current = true;
+    setBluetooth(current => ({
+      ...current,
+      busyId: device.id,
+      message: undefined,
+    }));
+    try {
+      await connectDevice(device.id);
+      setBluetooth(current => ({
+        ...current,
+        connected: {...current.connected, [device.id]: true},
+        message: {
+          text: `已连接 ${device.name ?? device.id}`,
+          error: false,
+        },
+      }));
+    } catch (error) {
+      // Computed before the updater for the same Hermes catch-binding reason.
+      const text =
+        error instanceof BleConnectFailure
+          ? error.message
+          : `连接失败：未知原因（${messageOf(error)}）`;
+      setBluetooth(current => ({
+        ...current,
+        message: {text, error: true},
+      }));
+    } finally {
+      bluetoothBusy.current = false;
+      setBluetooth(current => ({...current, busyId: undefined}));
+    }
+  }, []);
+
+  const disconnectBluetoothDevice = useCallback(async (device: BleDevice) => {
+    if (bluetoothBusy.current) {
+      return;
+    }
+    bluetoothBusy.current = true;
+    setBluetooth(current => ({
+      ...current,
+      busyId: device.id,
+      message: undefined,
+    }));
+    try {
+      await disconnectDevice(device.id);
+      setBluetooth(current => {
+        const connected = {...current.connected};
+        delete connected[device.id];
+        return {
+          ...current,
+          connected,
+          message: {
+            text: `已断开 ${device.name ?? device.id}`,
+            error: false,
+          },
+        };
+      });
+    } catch (error) {
+      setBluetooth(current => ({
+        ...current,
+        message: {text: messageOf(error), error: true},
+      }));
+    } finally {
+      bluetoothBusy.current = false;
+      setBluetooth(current => ({...current, busyId: undefined}));
+    }
+  }, []);
+
+  // Leaving the page stops the scan; the native client is kept so the
+  // permission dialog does not reappear on the next visit.
+  useEffect(() => {
+    return () => {
+      bluetoothScanning.current = false;
+      stopScan().catch(() => {});
+    };
+  }, []);
+
+  // A link the platform dropped (peripheral gone, Bluetooth switched off) has
+  // to flip the row back to 连接 instead of showing a stale 断开.
+  useEffect(() => {
+    return onDeviceDisconnected(deviceId => {
+      setBluetooth(current => {
+        if (current.connected[deviceId] !== true) {
+          return current;
+        }
+        const connected = {...current.connected};
+        delete connected[deviceId];
+        return {
+          ...current,
+          connected,
+          message: {text: `设备 ${deviceId} 已断开`, error: true},
+        };
+      });
+    });
+  }, []);
+
   const runAction = useCallback(
     (capability: Capability, action: CapabilityAction) => {
       switch (action) {
@@ -969,6 +1337,7 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         // single action button ever dispatches these.
         case 'haptics':
         case 'permissions':
+        case 'bluetooth-le':
           return;
       }
     },
@@ -1054,6 +1423,13 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
                   onQuery={queryPermission}
                   onRequest={askPermission}
                   onSettings={openSettingsForPermission}
+                />
+              ) : capability.action === 'bluetooth-le' ? (
+                <BluetoothBody
+                  state={bluetooth}
+                  onScan={toggleBluetoothScan}
+                  onConnect={connectBluetoothDevice}
+                  onDisconnect={disconnectBluetoothDevice}
                 />
               ) : interactive ? (
                 <View style={styles.actionRow}>
@@ -1427,6 +1803,109 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 18,
+  },
+  bluetooth: {
+    marginTop: 8,
+  },
+  bluetoothHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bluetoothCount: {
+    flex: 1,
+    color: colors.textHint,
+    fontSize: 12,
+  },
+  bluetoothScanButton: {
+    minHeight: 38,
+    minWidth: 72,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 19,
+    backgroundColor: colors.accent,
+  },
+  bluetoothScanStop: {
+    backgroundColor: colors.textSecondary,
+  },
+  bluetoothScanText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  bluetoothNote: {
+    marginTop: 4,
+    color: colors.textHint,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+  bluetoothMessage: {
+    marginTop: 6,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  bluetoothMessageError: {
+    color: colors.delete,
+  },
+  bluetoothHint: {
+    marginTop: 6,
+    color: colors.textHint,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  bluetoothList: {
+    marginTop: 6,
+    maxHeight: 240,
+  },
+  bluetoothRow: {
+    height: BLUETOOTH_ROW_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bluetoothRowText: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  bluetoothName: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  bluetoothAddress: {
+    marginTop: 1,
+    color: colors.textHint,
+    fontSize: 10,
+    lineHeight: 16,
+    fontFamily: 'monospace',
+  },
+  bluetoothConnectButton: {
+    minHeight: 32,
+    minWidth: 64,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: colors.accent,
+  },
+  bluetoothDisconnectButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  bluetoothConnectDisabled: {
+    opacity: 0.5,
+  },
+  bluetoothConnectText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  bluetoothDisconnectText: {
+    color: colors.accent,
   },
   actionRow: {
     marginTop: 10,
