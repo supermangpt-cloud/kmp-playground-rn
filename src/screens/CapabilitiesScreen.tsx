@@ -16,7 +16,7 @@
  * No dependency is added for the remaining rows: the ticket explicitly keeps
  * them unimplemented until a later ticket gives each one its own native path.
  */
-import React, {useCallback, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 
 import {
@@ -25,6 +25,7 @@ import {
   CapabilityAction,
   UNIMPLEMENTED_NOTE,
 } from '../data/capabilities';
+import {DIRECTORY_LABELS} from '../data/directories';
 import {getItem, removeItem, setItem} from '../native/asyncStorage';
 import {
   getString as readClipboard,
@@ -34,6 +35,11 @@ import {readDeviceInfo} from '../native/deviceInfo';
 import {launchImageLibrary} from '../native/imagePicker';
 import {NetworkStatus, readNetworkStatus} from '../native/networkStatus';
 import {decodeImage, isNativeScanAvailable} from '../native/scanKit';
+import {
+  DirectoryKind,
+  readDirectories,
+  StorageDirectory,
+} from '../native/storageDirectories';
 import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
 import {decodeQrFromBase64} from '../qr/imageDecode';
 import {colors} from '../ui/theme';
@@ -47,6 +53,14 @@ type RowOutcome =
   | {kind: 'busy'}
   | {kind: 'done'; text: string}
   | {kind: 'error'; text: string};
+
+/** The 存储目录 card's own state: its rows, last read and last copy. */
+type DirectoriesState = {
+  status: 'loading' | 'loaded' | 'error';
+  rows: StorageDirectory[];
+  message?: string;
+  copiedKind?: DirectoryKind;
+};
 
 /** Key KMP's storage demo uses; removed at the end of every round trip. */
 const STORAGE_DEMO_KEY = 'platform_capabilities.demo_key';
@@ -78,11 +92,158 @@ function networkText(status: NetworkStatus): string {
   return `${connection} · ${type}`;
 }
 
+type DirectoriesBodyProps = {
+  state: DirectoriesState;
+  onRefresh: () => void;
+  onCopy: (directory: StorageDirectory) => void;
+};
+
+/**
+ * The 存储目录 card body: `共 N 项` + 刷新, then one row per directory.
+ *
+ * A row with a path shows `存在` / `不存在` and a 复制 button; a row without one
+ * (the album, and the public directories on a phone) puts the explanation where
+ * the path would be instead of inventing a path. The path wraps in full — no
+ * ellipsis — because the point of the card is the real absolute path.
+ */
+function DirectoriesBody({
+  state,
+  onRefresh,
+  onCopy,
+}: DirectoriesBodyProps): JSX.Element {
+  const loading = state.status === 'loading';
+  return (
+    <View style={styles.directories}>
+      <View style={styles.directoriesHeader}>
+        <Text
+          style={styles.directoriesCount}
+          testID="capability-directories-count">
+          {loading && state.rows.length === 0
+            ? '读取中…'
+            : `共 ${state.rows.length} 项`}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="刷新"
+          disabled={loading}
+          onPress={onRefresh}
+          style={({pressed}) => [
+            styles.directoryRefresh,
+            loading && styles.directoryRefreshDisabled,
+            pressed && styles.pressed,
+          ]}
+          testID="capability-directories-refresh">
+          <Text style={styles.directoryRefreshText}>
+            {loading ? '读取中…' : '刷新'}
+          </Text>
+        </Pressable>
+      </View>
+
+      {state.message === undefined ? null : (
+        <Text
+          style={styles.directoryMessage}
+          testID="capability-directories-message">
+          {state.message}
+        </Text>
+      )}
+
+      {state.rows.length === 0 ? (
+        <Text
+          style={styles.directoriesHint}
+          testID="capability-directories-hint">
+          {loading ? '读取中…' : '点「刷新」读取当前平台的目录'}
+        </Text>
+      ) : (
+        state.rows.map(directory => {
+          const path = directory.path;
+          return (
+            <View
+              key={directory.kind}
+              style={styles.directoryRow}
+              testID={`capability-directory-row-${directory.kind}`}>
+              <View style={styles.directoryRowHeader}>
+                <Text style={styles.directoryLabel}>
+                  {DIRECTORY_LABELS[directory.kind]}
+                </Text>
+                {path === undefined ? null : (
+                  <>
+                    <Text
+                      style={[
+                        styles.directoryExists,
+                        directory.exists
+                          ? styles.directoryExistsYes
+                          : styles.directoryExistsNo,
+                      ]}
+                      testID={`capability-directory-exists-${directory.kind}`}>
+                      {directory.exists ? '存在' : '不存在'}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`复制${
+                        DIRECTORY_LABELS[directory.kind]
+                      }路径`}
+                      onPress={() => onCopy(directory)}
+                      style={({pressed}) => [
+                        styles.directoryCopyButton,
+                        pressed && styles.pressed,
+                      ]}
+                      testID={`capability-directory-copy-${directory.kind}`}>
+                      <Text style={styles.directoryCopyText}>复制</Text>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+
+              {path === undefined ? (
+                <Text
+                  style={styles.directoryNote}
+                  testID={`capability-directory-path-${directory.kind}`}>
+                  {directory.note ?? '该目录在当前平台不可用'}
+                </Text>
+              ) : (
+                <>
+                  <Text
+                    style={styles.directoryPath}
+                    testID={`capability-directory-path-${directory.kind}`}>
+                    {path}
+                  </Text>
+                  {directory.note === undefined ? null : (
+                    <Text
+                      style={styles.directoryNote}
+                      testID={`capability-directory-note-${directory.kind}`}>
+                      {directory.note}
+                    </Text>
+                  )}
+                </>
+              )}
+
+              {state.copiedKind === directory.kind ? (
+                <Text
+                  style={styles.directoryCopied}
+                  testID={`capability-directory-copied-${directory.kind}`}>
+                  已复制
+                </Text>
+              ) : null}
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
 export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   const [outcomes, setOutcomes] = useState<Record<string, RowOutcome>>({});
+  const [directories, setDirectories] = useState<DirectoriesState>({
+    status: 'loading',
+    rows: [],
+  });
   // The picker is modal and the button stays mounted while it is open; a ref
   // stops a second press from opening a second picker behind the first.
   const busy = useRef(false);
+  // The directory card's 刷新 and its first automatic read share this guard, so
+  // the permission request cannot be started twice.
+  const readingDirectories = useRef(false);
 
   const setOutcome = useCallback((id: string, outcome: RowOutcome) => {
     setOutcomes(current => ({...current, [id]: outcome}));
@@ -116,6 +277,63 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
     },
     [setOutcome],
   );
+
+  /**
+   * The directory card's read. The first one (page open) passes false so no
+   * permission dialog appears; 刷新 passes true and may ask for the two public
+   * directory permissions.
+   */
+  const loadDirectories = useCallback(async (requestPermissions: boolean) => {
+    if (readingDirectories.current) {
+      return;
+    }
+    readingDirectories.current = true;
+    setDirectories(current => ({
+      ...current,
+      status: 'loading',
+      message: undefined,
+      copiedKind: undefined,
+    }));
+    try {
+      const rows = await readDirectories(requestPermissions);
+      setDirectories({status: 'loaded', rows});
+    } catch (error) {
+      setDirectories(current => ({
+        ...current,
+        status: 'error',
+        message: `读取失败：${messageOf(error)}`,
+      }));
+    } finally {
+      readingDirectories.current = false;
+    }
+  }, []);
+
+  // Opening the page reads what it can without asking for anything; only the
+  // explicit 刷新 press may show a permission dialog.
+  useEffect(() => {
+    loadDirectories(false);
+  }, [loadDirectories]);
+
+  /** 「复制」 on one directory row: the path really goes to the clipboard. */
+  const copyDirectory = useCallback((directory: StorageDirectory) => {
+    const path = directory.path;
+    if (path === undefined) {
+      return;
+    }
+    try {
+      writeClipboard(path);
+      setDirectories(current => ({
+        ...current,
+        copiedKind: directory.kind,
+        message: undefined,
+      }));
+    } catch (error) {
+      setDirectories(current => ({
+        ...current,
+        message: `复制失败：${messageOf(error)}`,
+      }));
+    }
+  }, []);
 
   /** 「读取设备信息」: the real model, system and app build, as the device reports them. */
   const readDevice = useCallback(
@@ -384,6 +602,9 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         case 'network-status':
           probeNetwork(capability.id);
           return;
+        case 'directories':
+          loadDirectories(true);
+          return;
         case 'pick-image':
           pickImage(capability.id);
           return;
@@ -395,6 +616,7 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
     [
       clipboardRoundTrip,
       decodePickedImage,
+      loadDirectories,
       openLink,
       pickImage,
       probeNetwork,
@@ -458,7 +680,13 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
                 </Text>
               </View>
 
-              {interactive ? (
+              {capability.action === 'directories' ? (
+                <DirectoriesBody
+                  state={directories}
+                  onRefresh={() => loadDirectories(true)}
+                  onCopy={copyDirectory}
+                />
+              ) : interactive ? (
                 <View style={styles.actionRow}>
                   <Pressable
                     accessibilityRole="button"
@@ -617,6 +845,97 @@ const styles = StyleSheet.create({
   statusMissing: {
     borderColor: colors.textFaint,
     color: colors.textHint,
+  },
+  directories: {
+    marginTop: 8,
+  },
+  directoriesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  directoriesCount: {
+    color: colors.textHint,
+    fontSize: 12,
+  },
+  directoryRefresh: {
+    marginLeft: 'auto',
+    minHeight: 34,
+    minWidth: 52,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  directoryRefreshDisabled: {
+    opacity: 0.5,
+  },
+  directoryRefreshText: {
+    color: colors.accent,
+    fontSize: 12,
+  },
+  directoryMessage: {
+    marginTop: 6,
+    color: colors.delete,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  directoriesHint: {
+    marginTop: 6,
+    color: colors.textHint,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  directoryRow: {
+    paddingVertical: 6,
+  },
+  directoryRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  directoryLabel: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  directoryExists: {
+    marginEnd: 4,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  directoryExistsYes: {
+    color: colors.discount,
+  },
+  directoryExistsNo: {
+    color: colors.delete,
+  },
+  directoryCopyButton: {
+    minHeight: 34,
+    minWidth: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  directoryCopyText: {
+    color: colors.accent,
+    fontSize: 11,
+  },
+  directoryPath: {
+    marginTop: 1,
+    color: colors.textBody,
+    fontSize: 11,
+    lineHeight: 17,
+    fontFamily: 'monospace',
+  },
+  directoryNote: {
+    marginTop: 2,
+    color: colors.textHint,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+  directoryCopied: {
+    marginTop: 2,
+    color: colors.discount,
+    fontSize: 10,
   },
   actionRow: {
     marginTop: 10,

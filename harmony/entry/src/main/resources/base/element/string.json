@@ -13,6 +13,14 @@
       "value": "KMP RN Demo"
     },
     {
+      "name": "download_directory_reason",
+      "value": "读取公共下载目录，用于在平台能力页展示真实的存储目录路径"
+    },
+    {
+      "name": "documents_directory_reason",
+      "value": "读取公共文档目录，用于在平台能力页展示真实的存储目录路径"
+    },
+    {
       "name": "splash_title",
       "value": "KMP RN Demo"
     },

@@ -36,6 +36,31 @@
         }
       },
       {
+        // The platform-capability page's 存储目录 card reads the public
+        // Download directory. Both public-directory permissions are
+        // user_grant + normal and are only requested by the card's 刷新 press;
+        // opening the page reads without showing a dialog.
+        "name": "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY",
+        "reason": "$string:download_directory_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        // Same card, public Documents directory.
+        "name": "ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY",
+        "reason": "$string:documents_directory_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
         // RNOH's dev menu registers a shake detector (debug builds) on the
         // accelerometer; without this normal-level permission it logs an error
         // and shake-to-open-dev-menu stays disabled. It is unrelated to the

@@ -28,6 +28,7 @@ class CapabilityProbeTurboModule : public ArkTSTurboModule {
     methodMap_ = {
         ARK_ASYNC_METHOD_METADATA(readDeviceInfo, 0),
         ARK_ASYNC_METHOD_METADATA(readNetworkStatus, 0),
+        ARK_ASYNC_METHOD_METADATA(readDirectories, 1),
     };
   }
 };

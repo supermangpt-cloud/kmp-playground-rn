@@ -15,9 +15,12 @@
  * instead of offering a button that does nothing: `unimplemented` rows print
  * `RN 版本暂未实现`.
  *
- * The first three rows this ticket implements are `available` for storage and
- * URL opening, and `limited` for the clipboard: writing works, but HarmonyOS
- * only grants clipboard reads to the system PasteButton.
+ * Seven rows are `available` now: local storage, the storage-directory card,
+ * device information, network status, URL opening and the two image rows. The
+ * clipboard is `limited`: writing works, but HarmonyOS only grants clipboard
+ * reads to the system PasteButton. The directory card is interactive rather
+ * than a single button (`action: 'directories'`), which the screen renders as
+ * its own body.
  *
  * In particular 保存图片到相册 is `unimplemented`: the QR page has a 保存到相册
  * button, but that button only explains why the RN stack cannot write to the
@@ -34,7 +37,8 @@ export type CapabilityAction =
   | 'open-url'
   | 'clipboard'
   | 'device-info'
-  | 'network-status';
+  | 'network-status'
+  | 'directories';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -64,7 +68,8 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'directories',
     title: '存储目录',
     detail: '应用私有目录与公共目录的完整路径',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'directories',
   },
   {
     id: 'device-info',

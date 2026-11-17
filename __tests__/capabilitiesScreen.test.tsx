@@ -22,6 +22,7 @@ import {
 import {readDeviceInfo} from '../src/native/deviceInfo';
 import {launchImageLibrary} from '../src/native/imagePicker';
 import {readNetworkStatus} from '../src/native/networkStatus';
+import {readDirectories} from '../src/native/storageDirectories';
 import {decodeImage, isNativeScanAvailable} from '../src/native/scanKit';
 import {openExternalUrl} from '../src/native/urlOpener';
 
@@ -35,6 +36,10 @@ jest.mock('../src/native/deviceInfo', () => ({
 
 jest.mock('../src/native/networkStatus', () => ({
   readNetworkStatus: jest.fn(),
+}));
+
+jest.mock('../src/native/storageDirectories', () => ({
+  readDirectories: jest.fn(),
 }));
 
 jest.mock('../src/native/asyncStorage', () => ({
@@ -70,6 +75,7 @@ type MockWith = {
 const mockLaunch = launchImageLibrary as unknown as MockWith;
 const mockDeviceInfo = readDeviceInfo as unknown as MockWith;
 const mockNetworkStatus = readNetworkStatus as unknown as MockWith;
+const mockReadDirectories = readDirectories as unknown as MockWith;
 const mockNativeAvailable = isNativeScanAvailable as unknown as MockWith;
 const mockDecodeImage = decodeImage as unknown as MockWith;
 const mockOpenUrl = openExternalUrl as unknown as MockWith;
@@ -101,13 +107,58 @@ function isHost(node: renderer.ReactTestInstance): boolean {
   return typeof node.type === 'string';
 }
 
-function render(onBack: () => void = () => {}): renderer.ReactTestRenderer {
+async function render(
+  onBack: () => void = () => {},
+): Promise<renderer.ReactTestRenderer> {
   let tree: renderer.ReactTestRenderer | undefined;
-  renderer.act(() => {
+  // Async act flushes the directory card's first read, which runs in an effect.
+  await renderer.act(async () => {
     tree = renderer.create(<CapabilitiesScreen onBack={onBack} />);
   });
   return tree!;
 }
+
+/** The seven rows the HarmonyOS card gets, in the KMP order. */
+const DIRECTORY_ROWS = [
+  {
+    kind: 'Cache',
+    path: '/data/storage/el2/base/haps/entry/cache',
+    exists: true,
+  },
+  {
+    kind: 'Files',
+    path: '/data/storage/el2/base/haps/entry/files',
+    exists: true,
+  },
+  {
+    kind: 'Database',
+    path: '/data/storage/el2/database/entry',
+    exists: true,
+  },
+  {
+    kind: 'Temp',
+    path: '/data/storage/el2/base/haps/entry/temp',
+    exists: true,
+  },
+  {
+    kind: 'Downloads',
+    path: undefined,
+    exists: false,
+    note: '当前设备类型不支持公共下载目录（801：仅 PC/2in1 与平板支持）',
+  },
+  {
+    kind: 'Documents',
+    path: undefined,
+    exists: false,
+    note: '当前设备类型不支持公共文档目录（801：仅 PC/2in1 与平板支持）',
+  },
+  {
+    kind: 'PhotoAlbum',
+    path: undefined,
+    exists: false,
+    note: '鸿蒙相册通过 photoAccessHelper 的 URI 访问（如 file://media/Photo/...），没有可直接使用的目录路径',
+  },
+];
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -124,6 +175,7 @@ beforeEach(() => {
   mockNetworkStatus.mockImplementation(() =>
     Promise.resolve({connected: true, type: 'wifi'}),
   );
+  mockReadDirectories.mockImplementation(() => Promise.resolve(DIRECTORY_ROWS));
   mockNativeAvailable.mockReturnValue(false);
   mockDecodeImage.mockImplementation(() =>
     Promise.reject(new Error('decodeImage should not run here')),
@@ -138,8 +190,8 @@ beforeEach(() => {
   mockClipboardGet.mockImplementation(() => Promise.resolve(''));
 });
 
-it('renders the 14 KMP capabilities in the KMP page order', () => {
-  const tree = render();
+it('renders the 14 KMP capabilities in the KMP page order', async () => {
+  const tree = await render();
   const rows = tree.root.findAll(
     node =>
       isHost(node) &&
@@ -174,8 +226,8 @@ it('renders the 14 KMP capabilities in the KMP page order', () => {
   });
 });
 
-it('gives every implemented row a button, and no button to the rest', () => {
-  const tree = render();
+it('gives every implemented row a button, and no button to the rest', async () => {
+  const tree = await render();
 
   for (const capability of CAPABILITIES) {
     const status = textOf(
@@ -190,6 +242,20 @@ it('gives every implemented row a button, and no button to the rest', () => {
     const limitations = tree.root
       .findAllByProps({testID: `capability-limitation-${capability.id}`})
       .filter(isHost);
+
+    if (capability.id === 'directories') {
+      expect(status).toBe('可用');
+      // The directory card has a 刷新 button and one 复制 per row, not a single
+      // capability action button.
+      expect(buttons).toHaveLength(0);
+      expect(notes).toHaveLength(0);
+      expect(
+        tree.root
+          .findAllByProps({testID: 'capability-directories-refresh'})
+          .filter(isHost),
+      ).toHaveLength(1);
+      continue;
+    }
 
     if (capability.status === 'unimplemented') {
       expect(status).toBe('未实现');
@@ -219,6 +285,7 @@ it('gives every implemented row a button, and no button to the rest', () => {
     ),
   ).toEqual([
     'local-storage',
+    'directories',
     'device-info',
     'network-status',
     'url-opener',
@@ -237,7 +304,7 @@ it('gives every implemented row a button, and no button to the rest', () => {
 });
 
 it('prints the real device model, system version and app build for 设备信息', async () => {
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -263,7 +330,7 @@ it('prints the live network twice: wifi, then none after Wi-Fi is off', async ()
     .mockImplementationOnce(() =>
       Promise.resolve({connected: false, type: 'none'}),
     );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -293,7 +360,7 @@ it('prints an unrecognised network transport as 未知', async () => {
   mockNetworkStatus.mockImplementation(() =>
     Promise.resolve({connected: true, type: 'unknown'}),
   );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -310,11 +377,98 @@ it('prints an unrecognised network transport as 未知', async () => {
   });
 });
 
+it('lists all seven directories with real paths, existence and notes', async () => {
+  const tree = await render();
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-directories-count'})),
+  ).toBe('共 7 项');
+
+  for (const row of DIRECTORY_ROWS) {
+    expect(
+      tree.root
+        .findAllByProps({testID: `capability-directory-row-${row.kind}`})
+        .filter(isHost),
+    ).toHaveLength(1);
+  }
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-directory-path-Cache'})),
+  ).toBe('/data/storage/el2/base/haps/entry/cache');
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-directory-exists-Cache'}),
+    ),
+  ).toBe('存在');
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-directory-path-Downloads'}),
+    ),
+  ).toContain('801：仅 PC/2in1 与平板支持');
+  // No invented path and no copy button on a row without one.
+  expect(
+    tree.root
+      .findAllByProps({testID: 'capability-directory-copy-Downloads'})
+      .filter(isHost),
+  ).toHaveLength(0);
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-directory-path-PhotoAlbum'}),
+    ),
+  ).toContain('photoAccessHelper');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('reads without a permission request, and 刷新 asks for the permission', async () => {
+  const tree = await render();
+
+  // Opening the page must not show a dialog.
+  expect(mockReadDirectories).toHaveBeenNthCalledWith(1, false);
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-directories-refresh'})
+      .props.onPress();
+  });
+
+  expect(mockReadDirectories).toHaveBeenNthCalledWith(2, true);
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('copies a directory path and shows 已复制', async () => {
+  const tree = await render();
+
+  renderer.act(() => {
+    tree.root
+      .findByProps({testID: 'capability-directory-copy-Cache'})
+      .props.onPress();
+  });
+
+  expect(mockClipboardSet).toHaveBeenCalledWith(
+    '/data/storage/el2/base/haps/entry/cache',
+  );
+  expect(
+    textOf(
+      tree.root.findByProps({testID: 'capability-directory-copied-Cache'}),
+    ),
+  ).toBe('已复制');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
 it('writes the clipboard and reports a refused read-back as the platform limit', async () => {
   mockClipboardGet.mockImplementation(() =>
     Promise.reject(new Error('User refuses authorization')),
   );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -340,7 +494,7 @@ it('reads the clipboard back when the platform allows it', async () => {
   mockClipboardGet.mockImplementation(() =>
     Promise.resolve('RN 剪贴板演示 1234'),
   );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -371,7 +525,7 @@ it('calls the system picker for 从相册选图 and prints the picked file', asy
       ],
     }),
   );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -399,7 +553,7 @@ it('decodes a picked image through Scan Kit for 图片解析二维码', async ()
   mockDecodeImage.mockImplementation(() =>
     Promise.resolve({ok: true, values: ['https://example.com']}),
   );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -422,7 +576,7 @@ it('decodes a picked image through Scan Kit for 图片解析二维码', async ()
 it('reports a picker cancel without `didCancel` as 已取消选图', async () => {
   // HarmonyOS returns an empty result when the picker is dismissed with back.
   mockLaunch.mockImplementation(() => Promise.resolve({assets: []}));
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -445,7 +599,7 @@ it('reports a missing image-picker module instead of a silent no-op', async () =
       new Error('ImagePicker 模块没有注册（launchImageLibrary 不存在）'),
     ),
   );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -468,7 +622,7 @@ it('runs 写 → 读 → 删 → 再读 through AsyncStorage and prints the roun
     mockGetItem.mockResolvedValueOnce(value);
     return Promise.resolve(undefined);
   });
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -495,7 +649,7 @@ it('reports an AsyncStorage failure instead of a fake round trip', async () => {
   mockSetItem.mockImplementation(() =>
     Promise.reject(new Error('AsyncStorage 模块没有注册')),
   );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -513,7 +667,7 @@ it('reports an AsyncStorage failure instead of a fake round trip', async () => {
 });
 
 it('prints the browser hand-off for 打开链接', async () => {
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -538,7 +692,7 @@ it('shows the guard reason when a URL is refused', async () => {
       reason: '只允许打开 http/https 链接：tuitui://demo',
     }),
   );
-  const tree = render();
+  const tree = await render();
 
   await renderer.act(async () => {
     tree.root
@@ -555,9 +709,9 @@ it('shows the guard reason when a URL is refused', async () => {
   });
 });
 
-it('goes back to the list', () => {
+it('goes back to the list', async () => {
   const onBack = jest.fn();
-  const tree = render(onBack);
+  const tree = await render(onBack);
 
   renderer.act(() => {
     tree.root.findByProps({testID: 'capabilities-back'}).props.onPress();
