@@ -4,11 +4,11 @@
 （`CapabilitiesScreen.kt` 真机 dump）一致；页面结构也还是 KMP 的
 `名称 + 说明 + 右上状态 + 下方操作按钮 + 行内结果`：
 
-- **可用**（12 行）：本地存储、存储目录、设备信息、网络状态、震动/触觉、
-  系统分享、打开外部链接、动态权限、蓝牙 LE、保存图片到相册、从相册选图、
+- **可用**（13 行）：本地存储、存储目录、设备信息、网络状态、震动/触觉、
+  系统分享、打开外部链接、动态权限、蓝牙 LE、WiFi、保存图片到相册、从相册选图、
   图片解析二维码。
 - **部分可用**（1 行）：剪贴板。写入可用，读取被鸿蒙的系统权限限制，行内写明原因。
-- **未实现**（1 行）：WiFi，继续显示「未实现」，没有按钮。
+- **未实现**（0 行）：本批之后 14 行都能点，没有「未实现」占位。
 
 首屏、购物车、扫码页的现有对齐没有改动。
 
@@ -28,6 +28,7 @@
 | `src/native/systemShare.ts` | `CapabilityProbe` 的 `shareText` 封装 + 分享文本 |
 | `src/native/permissions.ts` | 8 个权限的定义、四态文案、`CapabilityProbe` 的三个权限方法封装；保存到相册的 `去设置` 也复用这里的 `openPermissionSettings` |
 | `src/native/imageSave.ts` | `ImageSave` turbo module 的 JS 封装：结构化结果、模块缺失说明、`qrSaveTitle` |
+| `src/native/wifiNetwork.ts` | `WifiNetwork` turbo module 的 JS 封装：扫描 / 当前 SSID / 候选网络连接的载荷校验与失败原因 |
 | `src/qr/qrPng.ts` | 把二维码矩阵编码成灰度 PNG（含 4 模块静区，PNG/CRC/Adler-32 全在 JS 里） |
 | `src/data/directories.ts` | 7 个目录的中文标签（与 KMP 的 `DirectoryKind.label` 一致） |
 | `harmony/entry/oh-package.json5` | 新增 async-storage、clipboard 两个 har 依赖（前一批） |
@@ -35,9 +36,11 @@
 | `harmony/entry/src/main/ets/PackageProvider.ets` | 注册两个包的 ArkTS turbo module，以及本单的 `CapabilityProbePackage` 和 `ImageSavePackage` |
 | `harmony/entry/src/main/ets/capabilities/CapabilityProbeTurboModule.ets` | `@ohos.deviceInfo` / `@ohos.net.connection` / `Context` + `@ohos.file.fs` 的真实读取，以及 `@ohos.vibrator`、ShareKit、`@ohos.abilityAccessCtrl` 的调用 |
 | `harmony/entry/src/main/ets/image/ImageSaveTurboModule.ets` | `WRITE_IMAGEVIDEO` 申请 → 缓存 PNG → `photoAccessHelper.createAsset` → 写入并读回校验 |
+| `harmony/entry/src/main/ets/wifi/WifiNetworkTurboModule.ets` | `@ohos.wifiManager` 的扫描 / 当前 SSID / `addCandidateConfig` + `connectToCandidateConfigWithUserAction` 连接 |
 | `harmony/entry/src/main/cpp/ImageSaveTurboModule.h` | `ImageSave` 的 `saveImage` C++ method map |
+| `harmony/entry/src/main/cpp/WifiNetworkTurboModule.h` | `WifiNetwork` 三个 Promise 方法的 C++ method map |
 | `harmony/entry/src/main/cpp/CapabilityProbeTurboModule.h` | `CapabilityProbe` 八个 Promise 方法的 C++ method map |
-| `harmony/entry/src/main/module.json5` | `GET_NETWORK_INFO`、两个公共目录、`VIBRATE`、四个动态权限、`WRITE_IMAGEVIDEO` 的声明 |
+| `harmony/entry/src/main/module.json5` | `GET_NETWORK_INFO`、两个公共目录、`VIBRATE`、四个动态权限、`WRITE_IMAGEVIDEO`、`GET_WIFI_INFO` / `SET_WIFI_INFO` 的声明 |
 
 ## 状态规则
 
@@ -473,6 +476,118 @@ Android / iOS 没有对应的保存模块，行内会如实显示「本实现只
 | 拒绝权限 | — | `after-qr-denied.png` 拒绝文案 + 「去设置」 |
 | 去设置 | — | `after-qr-settings.png` 系统「图片和视频权限」页（允许写入 / 不允许 / 确定） |
 
+## 第六批：WiFi（`wifi-network`）
+
+本批把最后一行 `WiFi` 从「未实现」变成真实的扫描 / 当前 SSID / 候选网络连接。
+新增 App 自己的 `WifiNetwork` ArkTS turbo module，接线照 `ImageSaveTurboModule`：
+`WifiNetworkPackage` 注册 ArkTS 模块，`WifiNetworkTurboModule.h` 给 CAPI 架构补
+method map，`AppPackage.h` 与 `PackageProvider.ets` 各加一处；JS 侧是
+`src/native/wifiNetwork.ts`。
+
+### 11. WiFi（`wifi-network`）
+
+- 行内结构（与 KMP 的 `WifiNetworkRow` 一致）：`扫描` + `当前 SSID` + AP 数，一行说明，
+  下面最多 220vp 高的可滚动 AP 列表；每行 `SSID / RSSI -45 · WPA2` + `连接`。
+  加密 AP 先展开行内密码面板（KMP 用 Compose `AlertDialog`；RN 版没有为这一个
+  对话框引入 `Modal`，改成卡片内联面板，字段和「连接 / 取消」行为相同）。
+- 扫描：`wifiManager.startScan()`（API 21+，只需 `SET_WIFI_INFO`，应用前台 2 分钟最多
+  4 次）刷新系统缓存，订阅 `wifiScanStateChange` 最多等 6 秒，然后
+  `getScanInfoList()` 读缓存；旧运行时才回退到已废弃的 `wifiManager.scan()`。
+  结果按 SSID 去重（同名的 2.4G / 5G 取最强），按 RSSI 降序；空 SSID 跳过。
+- **空列表的三种原因分开说**：载荷同时返回 `wifiActive` 与 `locationEnabled`
+  （`geoLocationManager.isLocationEnabled()`）。Wi-Fi 关 → 「Wi-Fi 未打开」；
+  定位开关关 → 「WiFi 扫描需要打开系统定位开关：请下拉通知栏打开「定位」后重试」，
+  并清空缓存列表；两者都开且真的为空 → 「没有发现 WiFi AP」；读取报错 →
+  平台 code / message。定位开关关闭时系统仍可能返回缓存列表，页面不把它当成
+  新鲜结果展示，这是 ticket 第 4 条验收的重点。
+- 连接：**`addCandidateConfig()` + `connectToCandidateConfigWithUserAction()`**，
+  不用 `connectToNetwork()`（需要 system_core 的 `MANAGE_WIFI_CONNECTION`）。
+  系统确认框弹出后，API 20+ 的接口会等用户答复；`2501005`（无响应）和 `2501006`
+  （拒绝）都映射为「已取消连接」。确认后最多 30 秒轮询 `getLinkedInfoSync().ssid`，
+  切过去才显示「已连接」，否则显示具体超时原因，不写成功。
+- 系统除了「是否信任…」确认框，连上无外网的 AP 后还会弹「当前 WLAN 不可上网，
+  是否继续使用此 WLAN？」；这是平台行为，选择「使用」后连接保留，App 不重复弹。
+- 当前 SSID：`getLinkedInfoSync()`；权限缺失或读取被拒 → 「读取当前 SSID 失败：…」，
+  不编 SSID；未连接 → 「当前 SSID：未连接 Wi-Fi」。
+- 权限：`module.json5` 新增 `GET_WIFI_INFO` / `SET_WIFI_INFO`，本机
+  `permission_definitions.json` 实测两者都是 **system_grant + normal**（安装即授予，
+  没有运行时弹框；ticket 里写 `GET_WIFI_INFO` 是 user_grant，与设备实际不一致，按设备
+  为准）。扫描前调用上一批 `permissions.ts` 新增的 `requestWifiScanPermission()`，
+  只申请 `APPROXIMATELY_LOCATION`（`user_grant`，`module.json5` 上一批已带
+  `reason` / `usedScene`）；拒绝后仍然尝试扫描，空列表时把权限情况写进提示。
+- 企业认证 EAP / WAPI 需要账号或证书字段，本页不伪造配置：扫描行照常显示加密类型，
+  点「连接」直接说明本页未支持，而不是发一个只有 SSID 的假配置。
+
+#### 为什么不是 `connectToNetwork`
+
+`connectToNetwork` 需要 `ohos.permission.MANAGE_WIFI_CONNECTION`（system_core），
+普通应用拿不到。候选网络路线只需要 `SET_WIFI_INFO`（system_grant），这是普通应用
+唯一的连接通路；`addCandidateConfig` 的注释也写明调用方必须在前台。
+
+#### 真机实测（HUAWEI Mate 60 Pro / API 26 / 浅色主题）
+
+基线是 `main` @ `4c12543` 的安装包，改后是同一台机器、同一浅色主题的签名 HAP
+（`scripts/inject-signing.py` 注入 RN profile，没有跑 `devecocli signature generate`）。
+
+- 行状态从「未实现」变成「可用」，显示 `扫描`、`当前 SSID`、平台说明和
+  「点「扫描」列出附近的 WiFi AP」。
+- 第一次点「扫描」弹出系统「允许“KMP RN Demo”访问你的大致位置？」；选「仅使用期间允许」
+  后开始扫描。定位开关当时是关的：扫描到 54 个 AP（系统缓存），但按最终逻辑会清空
+  列表并显示定位提示。
+- 在控制中心打开「位置」后再扫描：47 个 AP（另一次 62 个，AP 数随环境/扫描时机变化），
+  按 RSSI 降序，行内如 `360-test-xsd1-106 / RSSI -31 · WPA2`、`000-ipc / RSSI -39 · 开放`。
+- 「当前 SSID」→ `当前 SSID：HUAWEI-360`，与系统控制中心的 WLAN 名一致。
+- 点加密 AP `360-test-xsd1-106` 的「连接」→ 行内密码面板「连接 360-test-xsd1-106」
+  + 密码输入框 + `连接` / `取消`；点取消不发连接请求。
+- 点开放 AP `360P8PRO-FC02-5081e5dd2d6a-0124` 的「连接」→ 系统确认框
+  「是否信任“360P8PRO-FC02-5081e5dd2d6a-0124”并建立连接？」（取消 / 连接）。
+  确认后 App 轮询到链路切换：行内 `已连接：360P8PRO-FC02-5081e5dd2d6a-0124`，
+  该行按钮变「已连接」，再点「当前 SSID」→ `当前 SSID：360P8PRO-FC02-5081e5dd2d6a-0124`。
+  这条 AP 无外网，系统随即弹「当前 WLAN 不可上网，是否继续使用此 WLAN？」；选「使用」
+  后连接保留。验证完把设备切回原来的 `HUAWEI-360`。
+- 关掉「位置」再点「扫描」→ 行内
+  `WiFi 扫描需要打开系统定位开关：请下拉通知栏打开「定位」后重试`，AP 列表清空，
+  不再显示缓存 AP，也没有退化成「附近没有 AP」。
+- 自动化限制：系统信任框来自 `com.ohos.locationdialog` 的 UIExtension，
+  `uitest uiInput click` 注入的点击不被它接受（10 秒无操作后系统自己按「无响应」结束）；
+  改用 `uinput -T -c <x> <y>` 真实触摸注入才完成确认。App 侧两种结果都已验证：
+  无响应 → 「已取消连接」，真实确认 → 「已连接」。这只是测试注入的限制，人工点击正常。
+
+#### 检查
+
+- `npx tsc --noEmit`：通过。
+- `npx eslint src __tests__`：通过（0 error / 0 warning）。
+- `npx jest`：26 个测试文件、200 个用例通过。本批新增：
+  - `__tests__/wifiNetwork.test.ts`（12 个用例）：扫描载荷、Wi-Fi / 定位开关、
+    SSID / RSSI / 加密类型校验、开放与加密 AP 的密码传递、`connected` /
+    `userDeclined` / `failed` 三种结果、当前 SSID 的 `known` 区分、模块缺失。
+  - `__tests__/wifiCard.test.tsx`（12 个用例）：AP 列表（SSID / RSSI / 加密）、
+    定位关时清空缓存并提示、Wi-Fi 关、真正无 AP、扫描失败、当前 SSID / 未知、
+    开放 AP 直连、加密 AP 密码面板、取消映射、具体失败原因。
+  - `__tests__/permissions.test.ts`：`requestWifiScanPermission()` 走
+    `CapabilityProbe.requestPermission('wifi_scan')`，只申请大致位置。
+  - `__tests__/capabilitiesScreen.test.tsx`：WiFi 行改为「可用」，断言卡片自带
+    `扫描` / `当前 SSID`，没有单项能力按钮；可用行列表加入 `wifi-network`。
+- HarmonyOS 构建：`npm run dev` + `ohpm install --all` + 注入 RN 签名 profile +
+  `hvigorw ... assembleHap` 通过（signed / unsigned HAP 都产出）；已在真机安装验证。
+
+#### 验收证据
+
+截图在 `docs/evidence/capabilities/wifi/`；基线是 `main` @ `4c12543`，改后是同一台
+机器、同一浅色主题、同一页面位置的 HAP。
+
+| 场景 | 基线（before） | 改后（after） |
+| --- | --- | --- |
+| WiFi 行 | `before-wifi.jpeg`「未实现」 | `after-wifi-idle.jpeg`「可用」+ 扫描 / 当前 SSID + 平台说明 |
+| 位置权限 | — | `after-wifi-permission.jpeg` 系统「访问你的大致位置」弹框 |
+| 扫描结果 | — | `after-wifi-scan.jpeg` 47 / 62 个 AP，含 SSID · RSSI · 加密 |
+| 当前 SSID | — | `after-wifi-current-ssid.jpeg` `当前 SSID：HUAWEI-360` |
+| 加密 AP 密码 | — | `after-wifi-password.jpeg` 行内「连接 …」+ 密码输入 + 连接 / 取消 |
+| 系统确认框 | — | `after-wifi-connect-dialog.jpeg` 「是否信任“…”并建立连接？」 |
+| 连接成功 | — | `after-wifi-connected.jpeg` `已连接：…` + 该行「已连接」+ 当前 SSID |
+| 确认框取消 | — | `after-wifi-cancelled.jpeg` `已取消连接：…` |
+| 定位关闭 | — | `after-wifi-location-off.jpeg` 「请下拉通知栏打开「定位」后重试」 |
+
 ## 与 KMP 版的几处有意差异
 
 1. **剪贴板状态**：KMP 显示「可用」（它有 PasteButton）；RN 显示「部分可用」，
@@ -484,17 +599,25 @@ Android / iOS 没有对应的保存模块，行内会如实显示「本实现只
    因此行内是说明而不是路径。
 4. **震动回退的文案**：与 KMP 相同（物理反馈被系统触感开关忽略、改用通知场景
    振动），只是 RN 版把这句话放在行内结果里，而不是 KMP 的 `Ok` 消息。
-5. **其余 1 行**：WiFi 依旧没有实现，也没有为页面好看加占位依赖。保存图片到相册
-   RN 版与 KMP 版走同一条 `WRITE_IMAGEVIDEO` + `createAsset` 路径；KMP 的
-   `SaveButton` 备选没有被 RN 采用，原因见本页第五批与 `docs/features/qrcode.md`。
-6. **蓝牙列表的失败文案**：KMP 版把连接失败原因写在卡片里；RN 版同样行内展示，
+5. **WiFi 的扫描来源**：KMP 直接读 `getScanResultsSync()` 的系统缓存，不检查定位
+   开关；RN 用 API 21+ 的 `startScan()` 刷新缓存，并把定位开关作为展示前置条件
+   （关了就清空列表、提示去打开），对应 ticket 第 4 条验收。
+6. **WiFi 的密码输入**：KMP 用 Compose `AlertDialog`；RN 在卡片内展开密码面板，
+   字段和「连接 / 取消」行为相同，没有为单个对话框引入 `Modal` 依赖。
+7. **WiFi 连接结果**：KMP 文档记录候选连接「确认后仍未切网」；RN 本单在同一台
+   API 26 设备、用 `uinput` 真实确认系统信任框后，实际切到了 `360P8PRO-…` 并读到新
+   SSID（另有「WLAN 不可上网」平台提示）。两次测试的网络环境/系统版本可能不同，
+   这里不据此否定 KMP 的记录；页面在没切网时仍然如实报超时。
+8. **蓝牙列表的失败文案**：KMP 版把连接失败原因写在卡片里；RN 版同样行内展示，
    但超时由 JS 侧 15 秒兜底（ArkTS 适配版的 `connectToDevice` 只在连上时 resolve，
    不会自己超时），这是适配包的行为差异，不是页面文案差异。
 
 ## 后续
 
-其余 1 项（WiFi）仍按 KMP 的 `PlatformCapabilities` 接口逐项移植；
-在实现之前，本页保持「未实现」并在 `src/data/capabilities.ts` 里改对应行的
-`status` / `action` 即可。
-剪贴板若要变成完全可用，需要在 RNOH 里新增一个包装 ArkTS `PasteButton` 的自定义
-组件，并把一次性的读取结果回传给 JS（KMP 用的是 nativeEmbeds）。
+14 项能力在 RN 版都已接真实平台 API，没有「未实现」占位；剩下的是平台限制本身：
+
+- 剪贴板读取若要变成完全可用，需要在 RNOH 里新增一个包装 ArkTS `PasteButton` 的
+  自定义组件，并把一次性的读取结果回传给 JS（KMP 用的是 nativeEmbeds）。
+- WiFi 的 EAP / WAPI 企业网络需要账号或证书配置，本页仍会如实说明未支持；
+  定位关闭时扫描依赖系统缓存，页面不会展示缓存冒充新扫描。
+- 相册 / 通讯录读取仍是 `system_basic` ACL 权限，普通场景继续用系统 Picker。

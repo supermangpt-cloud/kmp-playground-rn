@@ -7,6 +7,7 @@ import { BlePlxPackage } from '@react-native-oh-tpl/react-native-ble-plx';
 import { ScanKitPackage } from './scan/ScanKitPackage';
 import { CapabilityProbePackage } from './capabilities/CapabilityProbePackage';
 import { ImageSavePackage } from './image/ImageSavePackage';
+import { WifiNetworkPackage } from './wifi/WifiNetworkPackage';
 
 /**
  * Third-party RN packages linked into the app. The list contains the
@@ -49,5 +50,8 @@ export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
     // WRITE_IMAGEVIDEO ACL, used by the QR page's 保存到相册 and the capability
     // page's 保存图片到相册 row. Its C++ method map lives in AppPackage.
     new ImageSavePackage(ctx),
+    // The app's Wi-Fi bridge: @ohos.wifiManager behind the WiFi card. Its C++
+    // method map lives in AppPackage.
+    new WifiNetworkPackage(ctx),
   ];
 }

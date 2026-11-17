@@ -15,6 +15,7 @@ import {
   permissionStateLabel,
   readPermissionState,
   requestPermission,
+  requestWifiScanPermission,
   showsPermissionSettings,
 } from '../src/native/permissions';
 import {getTurboModule} from '../src/native/turboModule';
@@ -180,6 +181,15 @@ it('rejects with a clear reason when the module is not registered', async () => 
   await expect(readPermissionState('camera')).rejects.toThrow(
     'CapabilityProbe 模块没有注册（权限方法不存在）',
   );
+});
+
+it('requests only the approximate-location permission for the WiFi scan', async () => {
+  const probe = fakeProbe();
+  probe.requestPermission.mockImplementation(() => Promise.resolve('granted'));
+  mockTurboModule.mockReturnValue(probe);
+
+  await expect(requestWifiScanPermission()).resolves.toBe('granted');
+  expect(probe.requestPermission).toHaveBeenCalledWith('wifi_scan');
 });
 
 it('opens the album-write permission settings through the same native call', async () => {

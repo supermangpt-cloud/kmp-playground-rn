@@ -197,6 +197,26 @@ export async function openPermissionSettings(id: PermissionId): Promise<void> {
 }
 
 /**
+ * Requests the one user_grant permission on the WiFi scan path.
+ *
+ * It is `APPROXIMATELY_LOCATION` only: the API reference for the deprecated
+ * active-scan call names precise LOCATION too, but the scan-list read this page
+ * uses does not, and asking for precise location would be more than the card
+ * needs. The permission is declared in module.json5 next to the 动态权限 card's
+ * location row; a denial is returned as a state, not an exception, so the card
+ * can still try the scan and report an empty list honestly.
+ */
+export async function requestWifiScanPermission(): Promise<PermissionState> {
+  let value: unknown;
+  try {
+    value = await requireProbe().requestPermission('wifi_scan');
+  } catch (error) {
+    throw new Error(reasonOf(error, '申请 WiFi 扫描所需的定位权限失败'));
+  }
+  return asState(value, '申请 WiFi 扫描所需的定位权限');
+}
+
+/**
  * The permission behind 保存图片到相册 (`WRITE_IMAGEVIDEO`).
  *
  * It is not one of the eight rows: that card's 相册 row is about reading the

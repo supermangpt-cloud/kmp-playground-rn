@@ -14,7 +14,14 @@
  * does not forget it.
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import {
   CAPABILITIES,
@@ -54,6 +61,7 @@ import {
   PermissionState,
   readPermissionState,
   requestPermission,
+  requestWifiScanPermission,
   showsPermissionSettings,
 } from '../native/permissions';
 import {decodeImage, isNativeScanAvailable} from '../native/scanKit';
@@ -64,6 +72,13 @@ import {
 } from '../native/storageDirectories';
 import {SHARE_DEMO_TEXT, shareText} from '../native/systemShare';
 import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
+import {
+  connectWifi,
+  readCurrentSsid,
+  scanWifi,
+  WifiAccessPoint,
+  WifiScanResult,
+} from '../native/wifiNetwork';
 import {encodeQr} from '../qr/qrCode';
 import {decodeQrFromBase64} from '../qr/imageDecode';
 import {qrPngBase64} from '../qr/qrPng';
@@ -113,6 +128,22 @@ type BluetoothState = {
   message?: {text: string; error: boolean};
 };
 
+/** The WiFi card's own state: the scan, the link and the password prompt. */
+type WifiState = {
+  scanning: boolean;
+  /** Whether a scan finished; distinguishes "not asked yet" from "none". */
+  scanned: boolean;
+  accessPoints: WifiAccessPoint[];
+  /** The SSID a successful connect reported; shown as 已连接 on that row. */
+  connectedSsid?: string;
+  /** The AP whose connect is running, if any. */
+  busySsid?: string;
+  message?: {text: string; error: boolean};
+  /** A secured AP waiting for its password, and the text typed so far. */
+  passwordTarget?: WifiAccessPoint;
+  password: string;
+};
+
 /** One button of the 震动 / 触觉 row, in the KMP order. */
 const HAPTIC_STRENGTHS: readonly {strength: HapticStrength; label: string}[] = [
   {strength: 'light', label: '轻'},
@@ -143,11 +174,243 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * The sentence under the WiFi 扫描 button. The three empty-list causes are kept
+ * apart on purpose: Wi-Fi off, location switch off, and a scan that really
+ * found nothing are different answers, and the ticket's acceptance checks the
+ * middle one by name.
+ */
+function wifiScanMessage(
+  result: WifiScanResult,
+  permissionNote = '',
+): {text: string; error: boolean} {
+  if (!result.wifiActive) {
+    return {text: 'Wi-Fi 未打开：请先在控制中心打开 Wi-Fi', error: true};
+  }
+  // The location switch is a precondition, not a footnote: the system can still
+  // hand back a cached list with it off, and the ticket's acceptance asks for
+  // the "open 定位" sentence in exactly that state. Do not show the stale list.
+  if (!result.locationEnabled) {
+    return {
+      text: 'WiFi 扫描需要打开系统定位开关：请下拉通知栏打开「定位」后重试',
+      error: false,
+    };
+  }
+  if (result.accessPoints.length > 0) {
+    return {
+      text: `扫描到 ${result.accessPoints.length} 个 AP`,
+      error: false,
+    };
+  }
+  if (result.reason.length > 0) {
+    return {text: `扫描失败：${result.reason}`, error: true};
+  }
+  return {
+    text: `没有发现 WiFi AP：附近没有 AP，或系统限制了扫描频率${permissionNote}`,
+    error: false,
+  };
+}
+
 /** How the 网络状态 row prints one reading; `unknown` is not guessed. */
 function networkText(status: NetworkStatus): string {
   const connection = status.connected ? '已联网' : '未联网';
   const type = status.type === 'unknown' ? '未知' : status.type;
   return `${connection} · ${type}`;
+}
+
+type WifiBodyProps = {
+  state: WifiState;
+  onScan: () => void;
+  onCurrentSsid: () => void;
+  onConnect: (accessPoint: WifiAccessPoint) => void;
+  onPasswordChange: (text: string) => void;
+  onPasswordConfirm: () => void;
+  onPasswordCancel: () => void;
+};
+
+/**
+ * The WiFi card body, ported from KMP's `WifiNetworkRow`: 扫描 and 当前 SSID in
+ * the header, then one row per AP (SSID + RSSI + encryption + 连接). A secured
+ * AP opens the inline password panel first; an open one connects directly.
+ *
+ * The two notes are part of the answer, not decoration: the candidate route
+ * shows a system trust dialog whose dismissal comes back as 已取消, and an
+ * empty list is separated from "location is off" by the sentence above the
+ * list. The list scrolls inside the card (220 vp, like KMP's
+ * `SCAN_LIST_MAX_HEIGHT`) so a crowded room does not push the rest of the page
+ * down.
+ */
+function WifiBody({
+  state,
+  onScan,
+  onCurrentSsid,
+  onConnect,
+  onPasswordChange,
+  onPasswordConfirm,
+  onPasswordCancel,
+}: WifiBodyProps): JSX.Element {
+  const scanning = state.scanning;
+  return (
+    <View style={styles.wifi}>
+      <View style={styles.wifiHeader}>
+        <Text style={styles.wifiCount} testID="capability-wifi-count">
+          {scanning
+            ? '扫描中…'
+            : state.accessPoints.length > 0
+            ? `共 ${state.accessPoints.length} 个 AP`
+            : '尚未扫描'}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="扫描附近的 WiFi AP"
+          disabled={scanning}
+          onPress={onScan}
+          style={({pressed}) => [
+            styles.wifiScanButton,
+            scanning && styles.wifiScanDisabled,
+            pressed && styles.pressed,
+          ]}
+          testID="capability-wifi-scan">
+          <Text style={styles.wifiScanText}>
+            {scanning ? '扫描中…' : '扫描'}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="读取当前 SSID"
+          onPress={onCurrentSsid}
+          style={({pressed}) => [
+            styles.wifiCurrentButton,
+            pressed && styles.pressed,
+          ]}
+          testID="capability-wifi-current">
+          <Text style={styles.wifiCurrentText}>当前 SSID</Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.wifiNote} testID="capability-wifi-note">
+        走 addCandidateConfig
+        候选网络路线；连接时系统会弹确认框，取消显示为「已取消」。当前 SSID 需要
+        GET_WIFI_INFO 权限，拿不到时会如实显示未知。
+      </Text>
+
+      {state.message === undefined ? null : (
+        <Text
+          style={[
+            styles.wifiMessage,
+            state.message.error && styles.wifiMessageError,
+          ]}
+          testID="capability-wifi-message">
+          {state.message.text}
+        </Text>
+      )}
+
+      {state.passwordTarget === undefined ? null : (
+        <View
+          style={styles.wifiPasswordPanel}
+          testID="capability-wifi-password-panel">
+          <Text style={styles.wifiPasswordTitle}>
+            连接 {state.passwordTarget.ssid}
+          </Text>
+          <TextInput
+            value={state.password}
+            onChangeText={onPasswordChange}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="Wi-Fi 密码"
+            style={styles.wifiPasswordInput}
+            testID="capability-wifi-password"
+          />
+          <View style={styles.wifiPasswordActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="使用这个密码连接"
+              accessibilityState={{disabled: state.password.length === 0}}
+              disabled={state.password.length === 0}
+              onPress={onPasswordConfirm}
+              style={({pressed}) => [
+                styles.wifiPasswordConfirm,
+                state.password.length === 0 && styles.wifiScanDisabled,
+                pressed && styles.pressed,
+              ]}
+              testID="capability-wifi-password-confirm">
+              <Text style={styles.wifiPasswordConfirmText}>连接</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="取消输入密码"
+              onPress={onPasswordCancel}
+              style={({pressed}) => [
+                styles.wifiPasswordCancel,
+                pressed && styles.pressed,
+              ]}
+              testID="capability-wifi-password-cancel">
+              <Text style={styles.wifiPasswordCancelText}>取消</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {state.scanned || state.accessPoints.length > 0 ? null : (
+        <Text style={styles.wifiHint} testID="capability-wifi-hint">
+          点「扫描」列出附近的 WiFi AP
+        </Text>
+      )}
+
+      {state.accessPoints.length === 0 ? null : (
+        <ScrollView
+          style={styles.wifiList}
+          nestedScrollEnabled
+          testID="capability-wifi-aps">
+          {state.accessPoints.map((accessPoint, index) => {
+            const connected = state.connectedSsid === accessPoint.ssid;
+            const busy = state.busySsid === accessPoint.ssid;
+            return (
+              <View
+                key={`${accessPoint.ssid}-${index}`}
+                style={styles.wifiRow}
+                testID={`capability-wifi-ap-${index}`}>
+                <View style={styles.wifiRowText}>
+                  <Text
+                    style={[
+                      styles.wifiSsid,
+                      connected && styles.wifiSsidConnected,
+                    ]}
+                    numberOfLines={1}>
+                    {accessPoint.ssid}
+                  </Text>
+                  <Text style={styles.wifiMeta}>
+                    RSSI {accessPoint.rssi} · {accessPoint.security}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`连接 ${accessPoint.ssid}`}
+                  disabled={busy || connected || scanning}
+                  onPress={() => onConnect(accessPoint)}
+                  style={({pressed}) => [
+                    styles.wifiConnectButton,
+                    connected && styles.wifiConnectedButton,
+                    busy && styles.wifiScanDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                  testID={`capability-wifi-connect-${index}`}>
+                  <Text
+                    style={[
+                      styles.wifiConnectText,
+                      connected && styles.wifiConnectedText,
+                    ]}>
+                    {busy ? '连接中…' : connected ? '已连接' : '连接'}
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+    </View>
+  );
 }
 
 type DirectoriesBodyProps = {
@@ -635,6 +898,12 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
     devices: [],
     connected: {},
   });
+  const [wifi, setWifi] = useState<WifiState>({
+    scanning: false,
+    scanned: false,
+    accessPoints: [],
+    password: '',
+  });
   // The picker is modal and the button stays mounted while it is open; a ref
   // stops a second press from opening a second picker behind the first.
   const busy = useRef(false);
@@ -648,6 +917,10 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   // up to 15 s for the platform while every other row stays usable.
   const bluetoothBusy = useRef(false);
   const bluetoothScanning = useRef(false);
+  // The WiFi card's guards are separate too: the connect poll can wait up to
+  // 30 s for the system dialog and association while the rest stays usable.
+  const wifiBusy = useRef(false);
+  const wifiSsidBusy = useRef(false);
 
   const setOutcome = useCallback((id: string, outcome: RowOutcome) => {
     setOutcomes(current => ({...current, [id]: outcome}));
@@ -1383,6 +1656,176 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
     });
   }, []);
 
+  /**
+   * 「扫描」: asks for the approximate-location permission (the one user_grant
+   * permission on this path), then reads the native scan payload. The empty
+   * list is never reported as "附近没有 WiFi" on its own: Wi-Fi off, location
+   * off and an actual empty scan are three different sentences.
+   */
+  const scanWifiAccessPoints = useCallback(async () => {
+    if (wifiBusy.current) {
+      return;
+    }
+    wifiBusy.current = true;
+    setWifi(current => ({
+      ...current,
+      scanning: true,
+      message: undefined,
+      passwordTarget: undefined,
+      password: '',
+    }));
+    let permissionNote = '';
+    try {
+      const permission = await requestWifiScanPermission();
+      if (permission !== 'granted') {
+        permissionNote =
+          '（定位权限未授予：如果列表为空，请到「动态权限」的位置行申请）';
+      }
+    } catch (error) {
+      // A refusal here is not fatal for the read; the scan payload says what
+      // the platform actually answered. Keep the reason for an empty result.
+      permissionNote = `（${messageOf(error)}）`;
+    }
+    try {
+      const result = await scanWifi();
+      const message = wifiScanMessage(result, permissionNote);
+      setWifi(current => ({
+        ...current,
+        scanning: false,
+        scanned: true,
+        // With the location switch off the native list is the system's cache,
+        // not a scan the page may present as current; clear it and show the
+        // 定位 instruction instead.
+        accessPoints: result.locationEnabled ? result.accessPoints : [],
+        message,
+      }));
+    } catch (error) {
+      const text = messageOf(error);
+      setWifi(current => ({
+        ...current,
+        scanning: false,
+        scanned: true,
+        accessPoints: [],
+        message: {text: `扫描失败：${text}`, error: true},
+      }));
+    } finally {
+      wifiBusy.current = false;
+    }
+  }, []);
+
+  /** 「当前 SSID」: a fresh read; a refusal is 未知, never a made-up name. */
+  const showCurrentWifiSsid = useCallback(async () => {
+    if (wifiSsidBusy.current) {
+      return;
+    }
+    wifiSsidBusy.current = true;
+    try {
+      const result = await readCurrentSsid();
+      setWifi(current => ({
+        ...current,
+        message: result.known
+          ? {
+              text: `当前 SSID：${
+                result.ssid.length === 0 ? '未连接 Wi-Fi' : result.ssid
+              }`,
+              error: false,
+            }
+          : {
+              text: `读取当前 SSID 失败：${
+                result.reason.length === 0 ? '平台没有说明原因' : result.reason
+              }`,
+              error: true,
+            },
+      }));
+    } catch (error) {
+      const text = messageOf(error);
+      setWifi(current => ({
+        ...current,
+        message: {text, error: true},
+      }));
+    } finally {
+      wifiSsidBusy.current = false;
+    }
+  }, []);
+
+  /**
+   * 「连接」on one AP. A secured AP asks for its password first; the connect
+   * itself goes through the candidate route and reports 已连接 / 已取消 /
+   * 失败（具体原因）.
+   */
+  const connectWifiAccessPoint = useCallback(
+    async (accessPoint: WifiAccessPoint, password: string) => {
+      if (wifiBusy.current) {
+        return;
+      }
+      wifiBusy.current = true;
+      setWifi(current => ({
+        ...current,
+        busySsid: accessPoint.ssid,
+        passwordTarget: undefined,
+        password: '',
+        message: undefined,
+      }));
+      try {
+        const result = await connectWifi(accessPoint, password);
+        if (result.outcome === 'connected') {
+          setWifi(current => ({
+            ...current,
+            connectedSsid: accessPoint.ssid,
+            message: {text: `已连接：${accessPoint.ssid}`, error: false},
+          }));
+        } else if (result.outcome === 'userDeclined') {
+          setWifi(current => ({
+            ...current,
+            connectedSsid: undefined,
+            message: {
+              text: `已取消连接：${accessPoint.ssid}（系统确认框被取消）`,
+              error: false,
+            },
+          }));
+        } else {
+          setWifi(current => ({
+            ...current,
+            message: {
+              text: `连接失败：${result.reason}`,
+              error: true,
+            },
+          }));
+        }
+      } catch (error) {
+        const text = messageOf(error);
+        setWifi(current => ({
+          ...current,
+          message: {text, error: true},
+        }));
+      } finally {
+        wifiBusy.current = false;
+        setWifi(current => ({...current, busySsid: undefined}));
+      }
+    },
+    [],
+  );
+
+  const askWifiPassword = useCallback((accessPoint: WifiAccessPoint) => {
+    setWifi(current => ({
+      ...current,
+      passwordTarget: accessPoint,
+      password: '',
+      message: undefined,
+    }));
+  }, []);
+
+  const connectWifiFromRow = useCallback(
+    (accessPoint: WifiAccessPoint) => {
+      if (accessPoint.secured) {
+        askWifiPassword(accessPoint);
+        return;
+      }
+      connectWifiAccessPoint(accessPoint, '');
+    },
+    [askWifiPassword, connectWifiAccessPoint],
+  );
+
   const runAction = useCallback(
     (capability: Capability, action: CapabilityAction) => {
       switch (action) {
@@ -1421,6 +1864,7 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         case 'haptics':
         case 'permissions':
         case 'bluetooth-le':
+        case 'wifi-network':
           return;
       }
     },
@@ -1514,6 +1958,29 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
                   onScan={toggleBluetoothScan}
                   onConnect={connectBluetoothDevice}
                   onDisconnect={disconnectBluetoothDevice}
+                />
+              ) : capability.action === 'wifi-network' ? (
+                <WifiBody
+                  state={wifi}
+                  onScan={scanWifiAccessPoints}
+                  onCurrentSsid={showCurrentWifiSsid}
+                  onConnect={connectWifiFromRow}
+                  onPasswordChange={text =>
+                    setWifi(current => ({...current, password: text}))
+                  }
+                  onPasswordConfirm={() => {
+                    const target = wifi.passwordTarget;
+                    if (target !== undefined) {
+                      connectWifiAccessPoint(target, wifi.password);
+                    }
+                  }}
+                  onPasswordCancel={() =>
+                    setWifi(current => ({
+                      ...current,
+                      passwordTarget: undefined,
+                      password: '',
+                    }))
+                  }
                 />
               ) : interactive ? (
                 <View style={styles.actionRow}>
@@ -1903,6 +2370,176 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 18,
+  },
+  wifi: {
+    marginTop: 8,
+  },
+  wifiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  wifiCount: {
+    flex: 1,
+    color: colors.textHint,
+    fontSize: 12,
+  },
+  wifiScanButton: {
+    minHeight: 38,
+    minWidth: 64,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 19,
+    backgroundColor: colors.accent,
+  },
+  wifiScanDisabled: {
+    opacity: 0.5,
+  },
+  wifiScanText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  wifiCurrentButton: {
+    marginLeft: 4,
+    minHeight: 38,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wifiCurrentText: {
+    color: colors.accent,
+    fontSize: 12,
+  },
+  wifiNote: {
+    marginTop: 4,
+    color: colors.textHint,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+  wifiMessage: {
+    marginTop: 6,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  wifiMessageError: {
+    color: colors.delete,
+  },
+  wifiHint: {
+    marginTop: 6,
+    color: colors.textHint,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  wifiPasswordPanel: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: colors.background,
+  },
+  wifiPasswordTitle: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  wifiPasswordInput: {
+    marginTop: 6,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    backgroundColor: colors.surface,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  wifiPasswordActions: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  wifiPasswordConfirm: {
+    minHeight: 34,
+    minWidth: 64,
+    paddingHorizontal: 14,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+  },
+  wifiPasswordConfirmText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  wifiPasswordCancel: {
+    minHeight: 34,
+    minWidth: 64,
+    paddingHorizontal: 14,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  wifiPasswordCancelText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  wifiList: {
+    marginTop: 6,
+    maxHeight: 220,
+  },
+  wifiRow: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  wifiRowText: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  wifiSsid: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  wifiSsidConnected: {
+    color: colors.discount,
+  },
+  wifiMeta: {
+    marginTop: 1,
+    color: colors.textHint,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+  wifiConnectButton: {
+    minHeight: 32,
+    minWidth: 64,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: colors.accent,
+  },
+  wifiConnectedButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.discount,
+  },
+  wifiConnectText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  wifiConnectedText: {
+    color: colors.discount,
   },
   bluetooth: {
     marginTop: 8,
