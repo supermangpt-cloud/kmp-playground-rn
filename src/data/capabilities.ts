@@ -10,11 +10,14 @@
  * side by side, so the visible order is the one that has to match.
  *
  * `status` is the RN port's own availability, not the KMP one (the KMP build
- * reports all 14 as 可用). The ticket allows the skeleton to ship before the
- * capabilities do, on one hard condition: an unavailable capability must say so
- * instead of offering a button that does nothing. Everything except the two
- * capabilities the scan page already implements is therefore `unimplemented`,
- * and the page prints `RN 版本暂未实现` for those rows.
+ * reports all 14 as 可用). The page only offers a button when the capability
+ * really calls the platform, and an unavailable capability has to say so
+ * instead of offering a button that does nothing: `unimplemented` rows print
+ * `RN 版本暂未实现`.
+ *
+ * The first three rows this ticket implements are `available` for storage and
+ * URL opening, and `limited` for the clipboard: writing works, but HarmonyOS
+ * only grants clipboard reads to the system PasteButton.
  *
  * In particular 保存图片到相册 is `unimplemented`: the QR page has a 保存到相册
  * button, but that button only explains why the RN stack cannot write to the
@@ -23,7 +26,7 @@
  */
 export type CapabilityStatus = 'available' | 'limited' | 'unimplemented';
 
-/** What a row's button does; only `available` rows have one. */
+/** What a row's button does; only rows that can call the platform have one. */
 export type CapabilityAction =
   | 'pick-image'
   | 'decode-image'
