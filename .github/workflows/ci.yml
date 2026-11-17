@@ -98,3 +98,25 @@ jobs:
           hap=harmony/entry/build/default/outputs/default/entry-default-unsigned.hap
           test -s "$hap"
           echo "unsigned HAP: $hap ($(wc -c < "$hap") bytes)"
+
+  # Merge the agent's own pull requests once every build gate is green. Operator
+  # PRs are deliberately excluded: a person opening a PR is asking for review,
+  # not for it to land on its own, and those get merged by hand.
+  merge:
+    name: merge
+    needs: [js, android, harmony]
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login == 'supermanlyy163' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: merge pull request
+        run: gh pr merge "$PR" --merge --delete-branch --repo "$REPO"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
