@@ -16,6 +16,7 @@ import {CAPABILITIES, UNIMPLEMENTED_NOTE} from '../src/data/capabilities';
 import CapabilitiesScreen from '../src/screens/CapabilitiesScreen';
 import {launchImageLibrary} from '../src/native/imagePicker';
 import {decodeImage, isNativeScanAvailable} from '../src/native/scanKit';
+import {openExternalUrl} from '../src/native/urlOpener';
 
 jest.mock('../src/native/imagePicker', () => ({
   launchImageLibrary: jest.fn(),
@@ -24,6 +25,11 @@ jest.mock('../src/native/imagePicker', () => ({
 jest.mock('../src/native/scanKit', () => ({
   isNativeScanAvailable: jest.fn(() => false),
   decodeImage: jest.fn(),
+}));
+
+jest.mock('../src/native/urlOpener', () => ({
+  DEMO_URL: 'https://example.com',
+  openExternalUrl: jest.fn(),
 }));
 
 type MockWith = {
@@ -35,6 +41,7 @@ type MockWith = {
 const mockLaunch = launchImageLibrary as unknown as MockWith;
 const mockNativeAvailable = isNativeScanAvailable as unknown as MockWith;
 const mockDecodeImage = decodeImage as unknown as MockWith;
+const mockOpenUrl = openExternalUrl as unknown as MockWith;
 
 function flatten(children: unknown): string {
   if (Array.isArray(children)) {
@@ -71,6 +78,9 @@ beforeEach(() => {
   mockNativeAvailable.mockReturnValue(false);
   mockDecodeImage.mockImplementation(() =>
     Promise.reject(new Error('decodeImage should not run here')),
+  );
+  mockOpenUrl.mockImplementation(() =>
+    Promise.resolve({ok: true, url: 'https://example.com'}),
   );
 });
 
@@ -137,13 +147,13 @@ it('marks only the implemented rows available, and gives no button to the rest',
     }
   }
 
-  // The skeleton ships with exactly the two capabilities the scan page has:
-  // the ticket's third status rule is "能用的写可用，没实现的写未实现".
+  // The skeleton ships with the capabilities the scan page already had plus
+  // the first platform capability this ticket implements.
   expect(
     CAPABILITIES.filter(capability => capability.status === 'available').map(
       capability => capability.id,
     ),
-  ).toEqual(['image-pick', 'barcode-decode']);
+  ).toEqual(['url-opener', 'image-pick', 'barcode-decode']);
 
   renderer.act(() => {
     tree.unmount();
@@ -248,6 +258,49 @@ it('reports a missing image-picker module instead of a silent no-op', async () =
   expect(
     textOf(tree.root.findByProps({testID: 'capability-result-image-pick'})),
   ).toBe('失败：ImagePicker 模块没有注册（launchImageLibrary 不存在）');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('prints the browser hand-off for 打开链接', async () => {
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-url-opener'})
+      .props.onPress();
+  });
+
+  expect(mockOpenUrl).toHaveBeenCalledWith('https://example.com');
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-url-opener'})),
+  ).toBe('已交给系统浏览器：https://example.com');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('shows the guard reason when a URL is refused', async () => {
+  mockOpenUrl.mockImplementation(() =>
+    Promise.resolve({
+      ok: false,
+      reason: '只允许打开 http/https 链接：tuitui://demo',
+    }),
+  );
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-url-opener'})
+      .props.onPress();
+  });
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-url-opener'})),
+  ).toBe('只允许打开 http/https 链接：tuitui://demo');
 
   renderer.act(() => {
     tree.unmount();

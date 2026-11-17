@@ -27,6 +27,7 @@ import {
 } from '../data/capabilities';
 import {launchImageLibrary} from '../native/imagePicker';
 import {decodeImage, isNativeScanAvailable} from '../native/scanKit';
+import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
 import {decodeQrFromBase64} from '../qr/imageDecode';
 import {colors} from '../ui/theme';
 
@@ -57,6 +58,36 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   const setOutcome = useCallback((id: string, outcome: RowOutcome) => {
     setOutcomes(current => ({...current, [id]: outcome}));
   }, []);
+
+  /** 「打开链接」: the shared guard runs before the system browser sees it. */
+  const openLink = useCallback(
+    async (id: string) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      setOutcome(id, {kind: 'busy'});
+      try {
+        const result = await openExternalUrl(DEMO_URL);
+        if (result.ok) {
+          setOutcome(id, {
+            kind: 'done',
+            text: `已交给系统浏览器：${result.url}`,
+          });
+        } else {
+          setOutcome(id, {kind: 'error', text: result.reason});
+        }
+      } catch (error) {
+        setOutcome(id, {
+          kind: 'error',
+          text: `无法打开链接：${messageOf(error)}`,
+        });
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
 
   /** 「从相册选图」: open the system picker and describe what came back. */
   const pickImage = useCallback(
@@ -187,13 +218,19 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
 
   const runAction = useCallback(
     (capability: Capability, action: CapabilityAction) => {
-      if (action === 'pick-image') {
-        pickImage(capability.id);
-      } else {
-        decodePickedImage(capability.id);
+      switch (action) {
+        case 'open-url':
+          openLink(capability.id);
+          return;
+        case 'pick-image':
+          pickImage(capability.id);
+          return;
+        case 'decode-image':
+          decodePickedImage(capability.id);
+          return;
       }
     },
-    [decodePickedImage, pickImage],
+    [decodePickedImage, openLink, pickImage],
   );
 
   return (

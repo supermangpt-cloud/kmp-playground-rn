@@ -24,7 +24,10 @@
 export type CapabilityStatus = 'available' | 'unimplemented';
 
 /** What a row's button does; only `available` rows have one. */
-export type CapabilityAction = 'pick-image' | 'decode-image';
+export type CapabilityAction =
+  | 'pick-image'
+  | 'decode-image'
+  | 'open-url';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -80,7 +83,9 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'url-opener',
     title: '打开外部链接',
     detail: '复用 isNavigableUrl，只放行 http(s)',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'open-url',
+    actionLabel: '打开链接',
   },
   {
     id: 'clipboard',
