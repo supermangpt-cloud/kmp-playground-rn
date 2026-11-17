@@ -22,8 +22,10 @@ import {
 import {readDeviceInfo} from '../src/native/deviceInfo';
 import {vibrate} from '../src/native/haptics';
 import {launchImageLibrary} from '../src/native/imagePicker';
+import {savePngToAlbum} from '../src/native/imageSave';
 import {readNetworkStatus} from '../src/native/networkStatus';
 import {
+  openAlbumWritePermissionSettings,
   openPermissionSettings,
   PERMISSIONS,
   readPermissionState,
@@ -33,10 +35,18 @@ import {readDirectories} from '../src/native/storageDirectories';
 import {SHARE_DEMO_TEXT, shareText} from '../src/native/systemShare';
 import {decodeImage, isNativeScanAvailable} from '../src/native/scanKit';
 import {openExternalUrl} from '../src/native/urlOpener';
+import {decodeQrFromBase64} from '../src/qr/imageDecode';
 
 jest.mock('../src/native/imagePicker', () => ({
   launchImageLibrary: jest.fn(),
 }));
+
+jest.mock('../src/native/imageSave', () => {
+  const actual = jest.requireActual(
+    '../src/native/imageSave',
+  ) as typeof import('../src/native/imageSave');
+  return {...actual, savePngToAlbum: jest.fn()};
+});
 
 jest.mock('../src/native/deviceInfo', () => ({
   readDeviceInfo: jest.fn(),
@@ -59,6 +69,7 @@ jest.mock('../src/native/permissions', () => {
   ) as typeof import('../src/native/permissions');
   return {
     ...actual,
+    openAlbumWritePermissionSettings: jest.fn(),
     openPermissionSettings: jest.fn(),
     readPermissionState: jest.fn(),
     requestPermission: jest.fn(),
@@ -104,6 +115,7 @@ type MockWith = {
 };
 
 const mockLaunch = launchImageLibrary as unknown as MockWith;
+const mockSavePng = savePngToAlbum as unknown as MockWith;
 const mockDeviceInfo = readDeviceInfo as unknown as MockWith;
 const mockNetworkStatus = readNetworkStatus as unknown as MockWith;
 const mockReadDirectories = readDirectories as unknown as MockWith;
@@ -116,6 +128,8 @@ const mockReadPermissionState = readPermissionState as unknown as MockWith;
 const mockRequestPermission = requestPermission as unknown as MockWith;
 const mockOpenPermissionSettings =
   openPermissionSettings as unknown as MockWith;
+const mockOpenAlbumWriteSettings =
+  openAlbumWritePermissionSettings as unknown as MockWith;
 const mockGetItem = getItem as unknown as MockWith;
 const mockSetItem = setItem as unknown as MockWith;
 const mockRemoveItem = removeItem as unknown as MockWith;
@@ -234,6 +248,16 @@ beforeEach(() => {
   mockOpenPermissionSettings.mockImplementation(() =>
     Promise.resolve(undefined),
   );
+  mockOpenAlbumWriteSettings.mockImplementation(() =>
+    Promise.resolve(undefined),
+  );
+  mockSavePng.mockImplementation(() =>
+    Promise.resolve({
+      saved: true,
+      uri: 'file://media/Photo/1/IMG_1/KMP-RN-QR.png',
+      title: 'KMP-RN-QR-20261117-180300',
+    }),
+  );
 });
 
 it('renders the 14 KMP capabilities in the KMP page order', async () => {
@@ -264,7 +288,10 @@ it('renders the 14 KMP capabilities in the KMP page order', async () => {
     .map(textOf)
     .filter(value =>
       CAPABILITIES.some(capability => capability.title === value),
-    );
+    )
+    // 保存图片到相册 is both the row title and its button label, so keep the
+    // first occurrence per title when checking the row order.
+    .filter((value, index, all) => all.indexOf(value) === index);
   expect(titles).toEqual(CAPABILITIES.map(capability => capability.title));
 
   renderer.act(() => {
@@ -381,6 +408,7 @@ it('gives every implemented row a button, and no button to the rest', async () =
     'url-opener',
     'camera-permission',
     'bluetooth-le',
+    'image-save',
     'image-pick',
     'barcode-decode',
   ]);
@@ -598,6 +626,103 @@ it('reads the clipboard back when the platform allows it', async () => {
   expect(
     textOf(tree.root.findByProps({testID: 'capability-result-clipboard'})),
   ).toBe(`写入「${written}」→ 读回「RN 剪贴板演示 1234」`);
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('saves a scannable QR PNG to the album from 保存图片到相册', async () => {
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-image-save'})
+      .props.onPress();
+  });
+
+  expect(mockSavePng).toHaveBeenCalledTimes(1);
+  const [base64, title] = mockSavePng.mock.calls[0] as [string, string];
+  expect(decodeQrFromBase64(base64)).toEqual({
+    ok: true,
+    value: 'https://example.com',
+  });
+  expect(title).toMatch(/^KMP-RN-QR-\d{8}-\d{6}$/);
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-image-save'})),
+  ).toBe('已保存到相册（KMP-RN-QR-20261117-180300）');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('offers 去设置 when the album write permission is refused', async () => {
+  mockSavePng.mockImplementation(() =>
+    Promise.resolve({
+      saved: false,
+      permissionDenied: true,
+      reason: '相册写入权限被拒绝（WRITE_IMAGEVIDEO）',
+    }),
+  );
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-image-save'})
+      .props.onPress();
+  });
+
+  const result = textOf(
+    tree.root.findByProps({testID: 'capability-result-image-save'}),
+  );
+  expect(result).toContain('被拒绝了');
+  expect(result).toContain('去设置');
+  expect(
+    tree.root
+      .findAllByProps({testID: 'capability-settings-image-save'})
+      .filter(isHost),
+  ).toHaveLength(1);
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-settings-image-save'})
+      .props.onPress();
+  });
+  expect(mockOpenAlbumWriteSettings).toHaveBeenCalledTimes(1);
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-image-save'})),
+  ).toBe('已打开系统设置页；回到 App 后重新点「保存图片到相册」');
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('prints the platform reason when the album write itself fails', async () => {
+  mockSavePng.mockImplementation(() =>
+    Promise.resolve({
+      saved: false,
+      permissionDenied: false,
+      reason: '写入相册失败：13900020 Invalid argument',
+    }),
+  );
+  const tree = await render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-image-save'})
+      .props.onPress();
+  });
+
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-image-save'})),
+  ).toBe('保存失败：写入相册失败：13900020 Invalid argument');
+  expect(
+    tree.root
+      .findAllByProps({testID: 'capability-settings-image-save'})
+      .filter(isHost),
+  ).toHaveLength(0);
 
   renderer.act(() => {
     tree.unmount();

@@ -195,3 +195,23 @@ export async function openPermissionSettings(id: PermissionId): Promise<void> {
     throw new Error(reasonOf(error, '打开权限设置失败'));
   }
 }
+
+/**
+ * The permission behind 保存图片到相册 (`WRITE_IMAGEVIDEO`).
+ *
+ * It is not one of the eight rows: that card's 相册 row is about reading the
+ * album (`READ_IMAGEVIDEO`), which is still unavailable. Writing one image the
+ * app generated goes through the ACL-enabled `WRITE_IMAGEVIDEO`, whose denial
+ * needs the same 去设置 second step as a normal permission, so the save flow
+ * reuses the native `openPermissionSettings` call with this internal id.
+ */
+const ALBUM_WRITE_PERMISSION_ID = 'photo_write';
+
+/** Opens the system page for the album-write permission after a denial. */
+export async function openAlbumWritePermissionSettings(): Promise<void> {
+  try {
+    await requireProbe().openPermissionSettings(ALBUM_WRITE_PERMISSION_ID);
+  } catch (error) {
+    throw new Error(reasonOf(error, '打开相册写入权限设置失败'));
+  }
+}

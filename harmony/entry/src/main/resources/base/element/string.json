@@ -47,6 +47,10 @@
     {
       "name": "bluetooth_reason",
       "value": "在平台能力页演示动态权限的查询与申请"
+    },
+    {
+      "name": "save_image_reason",
+      "value": "把生成的二维码图片保存到系统相册"
     }
   ]
 }

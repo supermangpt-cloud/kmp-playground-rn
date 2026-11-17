@@ -15,13 +15,13 @@
  * instead of offering a button that does nothing: `unimplemented` rows print
  * `RN 版本暂未实现`.
  *
- * Eleven rows are `available` now: local storage, the storage-directory card,
+ * Twelve rows are `available` now: local storage, the storage-directory card,
  * device information, network status, haptics, system share, URL opening, the
- * dynamic-permission card, Bluetooth LE and the two image rows. The clipboard
- * is `limited`: writing works, but HarmonyOS only grants clipboard reads to
- * the system PasteButton. Four rows are interactive rather than a single
- * button (`directories`, `haptics`, `permissions`, `bluetooth-le`), which the
- * screen renders as their own bodies.
+ * dynamic-permission card, Bluetooth LE, 保存图片到相册 and the two image rows.
+ * The clipboard is `limited`: writing works, but HarmonyOS only grants
+ * clipboard reads to the system PasteButton. Four rows are interactive rather
+ * than a single button (`directories`, `haptics`, `permissions`,
+ * `bluetooth-le`), which the screen renders as their own bodies.
  *
  * Bluetooth LE is `available` because the adapted `react-native-ble-plx`
  * really scans and connects on the device (see
@@ -31,10 +31,11 @@
  * addresses that cannot be connected — are printed inside the card, not
  * hidden behind the status chip.
  *
- * In particular 保存图片到相册 is `unimplemented`: the QR page has a 保存到相册
- * button, but that button only explains why the RN stack cannot write to the
- * album (see `docs/features/qrcode.md` §4). Labelling it partially available
- * would be exactly the "looks usable but is not" the ticket forbids.
+ * 保存图片到相册 is `available` because the app's own `ImageSave` ArkTS module
+ * really creates the asset through `photoAccessHelper.createAsset` behind the
+ * WRITE_IMAGEVIDEO ACL (see `docs/features/qrcode.md` §4 and the album
+ * screenshot under `docs/evidence/qr/save/`). It shares the QR page's save
+ * path, so both buttons run the same JS PNG encoder and native module.
  */
 export type CapabilityStatus = 'available' | 'limited' | 'unimplemented';
 
@@ -51,7 +52,8 @@ export type CapabilityAction =
   | 'haptics'
   | 'system-share'
   | 'permissions'
-  | 'bluetooth-le';
+  | 'bluetooth-le'
+  | 'save-image';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -157,7 +159,9 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'image-save',
     title: '保存图片到相册',
     detail: '生成二维码 PNG 并写入系统相册',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'save-image',
+    actionLabel: '保存图片到相册',
   },
   {
     id: 'image-pick',

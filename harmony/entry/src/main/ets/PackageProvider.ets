@@ -6,6 +6,7 @@ import { ClipboardPackage } from '@react-native-oh-tpl/clipboard';
 import { BlePlxPackage } from '@react-native-oh-tpl/react-native-ble-plx';
 import { ScanKitPackage } from './scan/ScanKitPackage';
 import { CapabilityProbePackage } from './capabilities/CapabilityProbePackage';
+import { ImageSavePackage } from './image/ImageSavePackage';
 
 /**
  * Third-party RN packages linked into the app. The list contains the
@@ -44,5 +45,9 @@ export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
     // The app's capability probe: `@ohos.deviceInfo`, `@ohos.net.connection`
     // and the storage-directory reads for the platform-capability page.
     new CapabilityProbePackage(ctx),
+    // The app's album writer: `photoAccessHelper.createAsset` behind the
+    // WRITE_IMAGEVIDEO ACL, used by the QR page's 保存到相册 and the capability
+    // page's 保存图片到相册 row. Its C++ method map lives in AppPackage.
+    new ImageSavePackage(ctx),
   ];
 }

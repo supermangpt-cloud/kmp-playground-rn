@@ -41,8 +41,10 @@ import {
 import {readDeviceInfo} from '../native/deviceInfo';
 import {HapticStrength, vibrate} from '../native/haptics';
 import {launchImageLibrary} from '../native/imagePicker';
+import {qrSaveTitle, savePngToAlbum} from '../native/imageSave';
 import {NetworkStatus, readNetworkStatus} from '../native/networkStatus';
 import {
+  openAlbumWritePermissionSettings,
   openPermissionSettings,
   PERMISSION_PLATFORM_NOTE,
   PERMISSIONS,
@@ -62,7 +64,9 @@ import {
 } from '../native/storageDirectories';
 import {SHARE_DEMO_TEXT, shareText} from '../native/systemShare';
 import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
+import {encodeQr} from '../qr/qrCode';
 import {decodeQrFromBase64} from '../qr/imageDecode';
+import {qrPngBase64} from '../qr/qrPng';
 import {colors} from '../ui/theme';
 
 type Props = {
@@ -73,7 +77,11 @@ type Props = {
 type RowOutcome =
   | {kind: 'busy'}
   | {kind: 'done'; text: string}
+  | {kind: 'denied'; text: string}
   | {kind: 'error'; text: string};
+
+/** The demo QR the 保存图片到相册 row writes, same value as the QR page. */
+const DEMO_QR_TEXT = 'https://example.com';
 
 /** The 存储目录 card's own state: its rows, last read and last copy. */
 type DirectoriesState = {
@@ -1053,6 +1061,78 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
   );
 
   /**
+   * 「保存图片到相册」: the same path as the QR page's button. The demo code is
+   * encoded and turned into a PNG in JS, then the app's `ImageSave` module asks
+   * for WRITE_IMAGEVIDEO, creates the album asset and writes the bytes.
+   */
+  const saveDemoImage = useCallback(
+    async (id: string) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      setOutcome(id, {kind: 'busy'});
+      try {
+        const encoding = encodeQr(DEMO_QR_TEXT, 'M');
+        if (!encoding.ok) {
+          setOutcome(id, {
+            kind: 'error',
+            text: `无法生成二维码：${encoding.error}`,
+          });
+          return;
+        }
+        const result = await savePngToAlbum(
+          qrPngBase64(encoding.code),
+          qrSaveTitle(),
+        );
+        if (result.saved) {
+          setOutcome(id, {
+            kind: 'done',
+            text: `已保存到相册（${result.title}）`,
+          });
+        } else if (result.permissionDenied) {
+          setOutcome(id, {
+            kind: 'denied',
+            text: permissionAdvice('denied'),
+          });
+        } else {
+          setOutcome(id, {kind: 'error', text: `保存失败：${result.reason}`});
+        }
+      } catch (error) {
+        setOutcome(id, {kind: 'error', text: `保存失败：${messageOf(error)}`});
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
+
+  /** 「去设置」 for the 保存图片到相册 row after the album permission is refused. */
+  const openSaveImageSettings = useCallback(
+    async (id: string) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      try {
+        await openAlbumWritePermissionSettings();
+        setOutcome(id, {
+          kind: 'denied',
+          text: '已打开系统设置页；回到 App 后重新点「保存图片到相册」',
+        });
+      } catch (error) {
+        setOutcome(id, {
+          kind: 'error',
+          text: `打开设置失败：${messageOf(error)}`,
+        });
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
+
+  /**
    * 「图片解析二维码」: pick one image and decode it, through Scan Kit when the
    * native module is registered and through `jsqr` otherwise — the same two
    * paths the scan page's 从相册选图 uses.
@@ -1315,6 +1395,9 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         case 'clipboard':
           clipboardRoundTrip(capability.id);
           return;
+        case 'save-image':
+          saveDemoImage(capability.id);
+          return;
         case 'device-info':
           readDevice(capability.id);
           return;
@@ -1349,6 +1432,7 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
       pickImage,
       probeNetwork,
       readDevice,
+      saveDemoImage,
       shareDemoText,
       storageRoundTrip,
     ],
@@ -1468,15 +1552,31 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
               )}
 
               {outcome === undefined ? null : (
-                <Text
-                  style={[
-                    styles.result,
-                    outcome.kind === 'busy' && styles.resultBusy,
-                    outcome.kind === 'error' && styles.resultError,
-                  ]}
-                  testID={`capability-result-${capability.id}`}>
-                  {outcome.kind === 'busy' ? '调用中…' : outcome.text}
-                </Text>
+                <View style={styles.resultBlock}>
+                  <Text
+                    style={[
+                      styles.result,
+                      outcome.kind === 'busy' && styles.resultBusy,
+                      outcome.kind === 'error' && styles.resultError,
+                    ]}
+                    testID={`capability-result-${capability.id}`}>
+                    {outcome.kind === 'busy' ? '调用中…' : outcome.text}
+                  </Text>
+                  {outcome.kind === 'denied' &&
+                  capability.id === 'image-save' ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="打开相册写入权限设置"
+                      onPress={() => openSaveImageSettings(capability.id)}
+                      style={({pressed}) => [
+                        styles.resultSettings,
+                        pressed && styles.pressed,
+                      ]}
+                      testID={`capability-settings-${capability.id}`}>
+                      <Text style={styles.resultSettingsText}>去设置</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               )}
             </View>
           );
@@ -1949,6 +2049,22 @@ const styles = StyleSheet.create({
   },
   resultError: {
     color: colors.delete,
+  },
+  resultBlock: {
+    alignItems: 'flex-start',
+  },
+  resultSettings: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+  },
+  resultSettingsText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '600',
   },
   pressed: {
     opacity: 0.7,

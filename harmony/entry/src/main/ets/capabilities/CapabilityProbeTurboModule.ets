@@ -63,6 +63,15 @@ const READ_CALENDAR_PERMISSION: Permissions = 'ohos.permission.READ_CALENDAR';
 const ACCESS_BLUETOOTH_PERMISSION: Permissions =
   'ohos.permission.ACCESS_BLUETOOTH';
 
+/**
+ * WRITE_IMAGEVIDEO is not a row of the eight-permission card (that card's 相册
+ * row is about reading the album). The save flow uses this id only for its
+ * 去设置 path: after a refusal the platform will not show the dialog again, so
+ * the QR page and the 保存图片到相册 row open this permission's settings page.
+ */
+const WRITE_IMAGE_VIDEO_PERMISSION: Permissions =
+  'ohos.permission.WRITE_IMAGEVIDEO';
+
 /** Preference store that remembers which permissions were already asked for. */
 const PERMISSION_STORE_NAME = 'platform_capabilities';
 const REQUESTED_KEY_PREFIX = 'permission_requested_';
@@ -488,6 +497,10 @@ export class CapabilityProbeTurboModule extends TurboModule {
         return [READ_CALENDAR_PERMISSION];
       case 'bluetooth':
         return [ACCESS_BLUETOOTH_PERMISSION];
+      case 'photo_write':
+        // Only 去设置 reaches this id; the save itself requests the permission
+        // in the app's ImageSave module, next to createAsset.
+        return [WRITE_IMAGE_VIDEO_PERMISSION];
       default:
         throw new Error(`未知或不可申请的权限：${permission}`);
     }

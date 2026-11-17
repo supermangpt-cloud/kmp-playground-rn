@@ -125,6 +125,22 @@
         }
       },
       {
+        // Saving the generated QR code writes a PNG into the system album. On
+        // HarmonyOS createAsset needs WRITE_IMAGEVIDEO, a user_grant permission
+        // whose availableLevel is system_basic, so a normal app receives it
+        // only through the ACL in the signing profile. Declaring it here is
+        // what makes the runtime request possible at all; the ACL itself stays
+        // out of the repository with the rest of the signing material.
+        "name": "ohos.permission.WRITE_IMAGEVIDEO",
+        "reason": "$string:save_image_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
         // RNOH's dev menu registers a shake detector (debug builds) on the
         // accelerometer; without this normal-level permission it logs an error
         // and shake-to-open-dev-menu stays disabled. It is unrelated to the
