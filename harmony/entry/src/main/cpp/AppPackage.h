@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 
+#include "CapabilityProbeTurboModule.h"
 #include "ImagePickerTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
 #include "ScanKitTurboModule.h"
@@ -39,6 +40,11 @@ class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
     // scan page fallback (promise-returning methods).
     if (name == "ScanKit") {
       return std::make_shared<ScanKitTurboModule>(ctx, name);
+    }
+    // The app's capability probe: the ArkTS reads behind the capability page's
+    // device-information, network-status and storage-directory rows.
+    if (name == "CapabilityProbe") {
+      return std::make_shared<CapabilityProbeTurboModule>(ctx, name);
     }
     return nullptr;
   }

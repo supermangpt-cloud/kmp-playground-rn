@@ -15,12 +15,44 @@
         "name": "ohos.permission.INTERNET"
       },
       {
+        // The platform-capability page's 网络状态 row reads the default network
+        // and its bearer types through @ohos.net.connection. GET_NETWORK_INFO is
+        // a normal-level system_grant permission, so the app holds it on install
+        // and no runtime dialog is involved.
+        "name": "ohos.permission.GET_NETWORK_INFO"
+      },
+      {
         // The self-drawn scan page (`pages/ScanPage`) previews the back camera
         // through Scan Kit's customScan. CAMERA is a user_grant permission, so
         // the page asks at runtime and the reason string is shown in the
         // system dialog.
         "name": "ohos.permission.CAMERA",
         "reason": "$string:camera_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        // The platform-capability page's 存储目录 card reads the public
+        // Download directory. Both public-directory permissions are
+        // user_grant + normal and are only requested by the card's 刷新 press;
+        // opening the page reads without showing a dialog.
+        "name": "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY",
+        "reason": "$string:download_directory_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        // Same card, public Documents directory.
+        "name": "ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY",
+        "reason": "$string:documents_directory_reason",
         "usedScene": {
           "abilities": [
             "EntryAbility"
