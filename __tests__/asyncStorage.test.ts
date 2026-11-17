@@ -16,7 +16,10 @@ type Pair = [string, string];
 
 type FakeStorage = {
   multiGet: jest.Mock<
-    (keys: string[], callback: (error?: unknown, result?: Pair[] | null) => void) => void
+    (
+      keys: string[],
+      callback: (error?: unknown, result?: Pair[] | null) => void,
+    ) => void
   >;
   multiSet: jest.Mock<
     (pairs: Pair[], callback: (error?: unknown) => void) => void
@@ -88,10 +91,7 @@ it('writes and removes through multiSet/multiRemove', async () => {
     [['k', 'v']],
     expect.any(Function),
   );
-  expect(storage.multiRemove).toHaveBeenCalledWith(
-    ['k'],
-    expect.any(Function),
-  );
+  expect(storage.multiRemove).toHaveBeenCalledWith(['k'], expect.any(Function));
 });
 
 it('rejects with a clear reason when the module is not registered', async () => {

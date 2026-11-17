@@ -21,14 +21,15 @@
  * album (see `docs/features/qrcode.md` §4). Labelling it partially available
  * would be exactly the "looks usable but is not" the ticket forbids.
  */
-export type CapabilityStatus = 'available' | 'unimplemented';
+export type CapabilityStatus = 'available' | 'limited' | 'unimplemented';
 
 /** What a row's button does; only `available` rows have one. */
 export type CapabilityAction =
   | 'pick-image'
   | 'decode-image'
   | 'local-storage'
-  | 'open-url';
+  | 'open-url'
+  | 'clipboard';
 
 export type Capability = {
   /** Test id suffix and the key of the row's inline result. */
@@ -38,6 +39,8 @@ export type Capability = {
   status: CapabilityStatus;
   action?: CapabilityAction;
   actionLabel?: string;
+  /** Why a `limited` row is not fully available; shown inside the row. */
+  limitation?: string;
 };
 
 /** The one-line reason an `unimplemented` row prints where its button would be. */
@@ -94,7 +97,11 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'clipboard',
     title: '剪贴板',
     detail: '写入后读回（粘贴由输入法验证）',
-    status: 'unimplemented',
+    status: 'limited',
+    action: 'clipboard',
+    actionLabel: '写入 → 读回',
+    limitation:
+      '写入可用；读回受系统限制：READ_PASTEBOARD 为 system_basic，普通应用无法申请，只能由系统 PasteButton 安全控件授权读取',
   },
   {
     id: 'camera-permission',

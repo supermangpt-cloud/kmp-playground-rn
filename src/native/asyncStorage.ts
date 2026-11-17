@@ -44,7 +44,9 @@ function reasonOf(error: unknown, fallback: string): string {
   if (typeof error === 'object' && error !== null) {
     const {message, code} = error as {message?: unknown; code?: unknown};
     if (typeof message === 'string' && message.length > 0) {
-      return code === undefined ? message : `${message}（code ${String(code)}）`;
+      return code === undefined
+        ? message
+        : `${message}（code ${String(code)}）`;
     }
   }
   return fallback;

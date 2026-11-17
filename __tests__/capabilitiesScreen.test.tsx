@@ -15,6 +15,10 @@ import {beforeEach, expect, it, jest} from '@jest/globals';
 import {CAPABILITIES, UNIMPLEMENTED_NOTE} from '../src/data/capabilities';
 import CapabilitiesScreen from '../src/screens/CapabilitiesScreen';
 import {getItem, removeItem, setItem} from '../src/native/asyncStorage';
+import {
+  getString as readClipboard,
+  setString as writeClipboard,
+} from '../src/native/clipboard';
 import {launchImageLibrary} from '../src/native/imagePicker';
 import {decodeImage, isNativeScanAvailable} from '../src/native/scanKit';
 import {openExternalUrl} from '../src/native/urlOpener';
@@ -27,6 +31,11 @@ jest.mock('../src/native/asyncStorage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
   removeItem: jest.fn(),
+}));
+
+jest.mock('../src/native/clipboard', () => ({
+  getString: jest.fn(),
+  setString: jest.fn(),
 }));
 
 jest.mock('../src/native/scanKit', () => ({
@@ -54,6 +63,8 @@ const mockOpenUrl = openExternalUrl as unknown as MockWith;
 const mockGetItem = getItem as unknown as MockWith;
 const mockSetItem = setItem as unknown as MockWith;
 const mockRemoveItem = removeItem as unknown as MockWith;
+const mockClipboardGet = readClipboard as unknown as MockWith;
+const mockClipboardSet = writeClipboard as unknown as MockWith;
 
 function flatten(children: unknown): string {
   if (Array.isArray(children)) {
@@ -86,6 +97,7 @@ function render(onBack: () => void = () => {}): renderer.ReactTestRenderer {
 }
 
 beforeEach(() => {
+  jest.clearAllMocks();
   mockLaunch.mockImplementation(() => Promise.resolve({didCancel: true}));
   mockNativeAvailable.mockReturnValue(false);
   mockDecodeImage.mockImplementation(() =>
@@ -97,6 +109,8 @@ beforeEach(() => {
   mockGetItem.mockImplementation(() => Promise.resolve(null));
   mockSetItem.mockImplementation(() => Promise.resolve(undefined));
   mockRemoveItem.mockImplementation(() => Promise.resolve(undefined));
+  mockClipboardSet.mockImplementation(() => undefined);
+  mockClipboardGet.mockImplementation(() => Promise.resolve(''));
 });
 
 it('renders the 14 KMP capabilities in the KMP page order', () => {
@@ -135,7 +149,7 @@ it('renders the 14 KMP capabilities in the KMP page order', () => {
   });
 });
 
-it('marks only the implemented rows available, and gives no button to the rest', () => {
+it('gives every implemented row a button, and no button to the rest', () => {
   const tree = render();
 
   for (const capability of CAPABILITIES) {
@@ -148,27 +162,90 @@ it('marks only the implemented rows available, and gives no button to the rest',
     const notes = tree.root
       .findAllByProps({testID: `capability-note-${capability.id}`})
       .filter(isHost);
+    const limitations = tree.root
+      .findAllByProps({testID: `capability-limitation-${capability.id}`})
+      .filter(isHost);
 
-    if (capability.status === 'available') {
-      expect(status).toBe('可用');
-      expect(buttons).toHaveLength(1);
-      expect(notes).toHaveLength(0);
-    } else {
+    if (capability.status === 'unimplemented') {
       expect(status).toBe('未实现');
       // No button that could be pressed and do nothing.
       expect(buttons).toHaveLength(0);
       expect(notes).toHaveLength(1);
       expect(textOf(notes[0])).toBe(UNIMPLEMENTED_NOTE);
+    } else {
+      expect(status).toBe(
+        capability.status === 'available' ? '可用' : '部分可用',
+      );
+      expect(buttons).toHaveLength(1);
+      expect(notes).toHaveLength(0);
+    }
+
+    if (capability.status === 'limited') {
+      expect(limitations).toHaveLength(1);
+      expect(textOf(limitations[0])).toContain('PasteButton');
+    } else {
+      expect(limitations).toHaveLength(0);
     }
   }
 
-  // The skeleton ships with the capabilities the scan page already had plus
-  // the first platform capability this ticket implements.
   expect(
     CAPABILITIES.filter(capability => capability.status === 'available').map(
       capability => capability.id,
     ),
   ).toEqual(['local-storage', 'url-opener', 'image-pick', 'barcode-decode']);
+  expect(
+    CAPABILITIES.filter(capability => capability.status === 'limited').map(
+      capability => capability.id,
+    ),
+  ).toEqual(['clipboard']);
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('writes the clipboard and reports a refused read-back as the platform limit', async () => {
+  mockClipboardGet.mockImplementation(() =>
+    Promise.reject(new Error('User refuses authorization')),
+  );
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-clipboard'})
+      .props.onPress();
+  });
+
+  expect(mockClipboardSet).toHaveBeenCalledTimes(1);
+  const written = mockClipboardSet.mock.calls[0][0] as string;
+  expect(written).toMatch(/^RN 剪贴板演示 \d{4}$/);
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-clipboard'})),
+  ).toBe(
+    `写入「${written}」成功；读回失败：User refuses authorization（读取需要系统 PasteButton 安全控件授权）`,
+  );
+
+  renderer.act(() => {
+    tree.unmount();
+  });
+});
+
+it('reads the clipboard back when the platform allows it', async () => {
+  mockClipboardGet.mockImplementation(() =>
+    Promise.resolve('RN 剪贴板演示 1234'),
+  );
+  const tree = render();
+
+  await renderer.act(async () => {
+    tree.root
+      .findByProps({testID: 'capability-action-clipboard'})
+      .props.onPress();
+  });
+
+  const written = mockClipboardSet.mock.calls[0][0] as string;
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-result-clipboard'})),
+  ).toBe(`写入「${written}」→ 读回「RN 剪贴板演示 1234」`);
 
   renderer.act(() => {
     tree.unmount();

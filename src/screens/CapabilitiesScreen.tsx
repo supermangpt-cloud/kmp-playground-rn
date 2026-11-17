@@ -26,6 +26,10 @@ import {
   UNIMPLEMENTED_NOTE,
 } from '../data/capabilities';
 import {getItem, removeItem, setItem} from '../native/asyncStorage';
+import {
+  getString as readClipboard,
+  setString as writeClipboard,
+} from '../native/clipboard';
 import {launchImageLibrary} from '../native/imagePicker';
 import {decodeImage, isNativeScanAvailable} from '../native/scanKit';
 import {DEMO_URL, openExternalUrl} from '../native/urlOpener';
@@ -51,7 +55,14 @@ function randomSuffix(): string {
 }
 
 function statusLabel(capability: Capability): string {
-  return capability.status === 'available' ? '可用' : '未实现';
+  switch (capability.status) {
+    case 'available':
+      return '可用';
+    case 'limited':
+      return '部分可用';
+    default:
+      return '未实现';
+  }
 }
 
 function messageOf(error: unknown): string {
@@ -84,9 +95,9 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         const afterRemove = await getItem(STORAGE_DEMO_KEY);
         setOutcome(id, {
           kind: 'done',
-          text: `写入「${value}」→ 读回「${readBack ?? 'null'}」→ 删除 → 再读「${
-            afterRemove ?? 'null'
-          }」`,
+          text: `写入「${value}」→ 读回「${
+            readBack ?? 'null'
+          }」→ 删除 → 再读「${afterRemove ?? 'null'}」`,
         });
       } catch (error) {
         setOutcome(id, {kind: 'error', text: `失败：${messageOf(error)}`});
@@ -119,6 +130,49 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         setOutcome(id, {
           kind: 'error',
           text: `无法打开链接：${messageOf(error)}`,
+        });
+      } finally {
+        busy.current = false;
+      }
+    },
+    [setOutcome],
+  );
+
+  /**
+   * 「写入 → 读回」: the write always runs; a refused read is reported as the
+   * platform limitation (HarmonyOS only grants clipboard reads to PasteButton),
+   * not as a generic failure.
+   */
+  const clipboardRoundTrip = useCallback(
+    async (id: string) => {
+      if (busy.current) {
+        return;
+      }
+      busy.current = true;
+      setOutcome(id, {kind: 'busy'});
+      const value = `RN 剪贴板演示 ${randomSuffix()}`;
+      try {
+        writeClipboard(value);
+      } catch (error) {
+        setOutcome(id, {
+          kind: 'error',
+          text: `写入失败：${messageOf(error)}`,
+        });
+        busy.current = false;
+        return;
+      }
+      try {
+        const readBack = await readClipboard();
+        setOutcome(id, {
+          kind: 'done',
+          text: `写入「${value}」→ 读回「${readBack}」`,
+        });
+      } catch (error) {
+        setOutcome(id, {
+          kind: 'done',
+          text: `写入「${value}」成功；读回失败：${messageOf(
+            error,
+          )}（读取需要系统 PasteButton 安全控件授权）`,
         });
       } finally {
         busy.current = false;
@@ -263,6 +317,9 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         case 'open-url':
           openLink(capability.id);
           return;
+        case 'clipboard':
+          clipboardRoundTrip(capability.id);
+          return;
         case 'pick-image':
           pickImage(capability.id);
           return;
@@ -271,7 +328,13 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
           return;
       }
     },
-    [decodePickedImage, openLink, pickImage, storageRoundTrip],
+    [
+      clipboardRoundTrip,
+      decodePickedImage,
+      openLink,
+      pickImage,
+      storageRoundTrip,
+    ],
   );
 
   return (
@@ -304,8 +367,8 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
         {CAPABILITIES.map(capability => {
           const outcome = outcomes[capability.id];
           const action = capability.action;
-          const available =
-            capability.status === 'available' && action !== undefined;
+          const interactive =
+            capability.status !== 'unimplemented' && action !== undefined;
           return (
             <View
               key={capability.id}
@@ -319,14 +382,17 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
                 <Text
                   style={[
                     styles.status,
-                    available ? styles.statusAvailable : styles.statusMissing,
+                    capability.status === 'available' && styles.statusAvailable,
+                    capability.status === 'limited' && styles.statusLimited,
+                    capability.status === 'unimplemented' &&
+                      styles.statusMissing,
                   ]}
                   testID={`capability-status-${capability.id}`}>
                   {statusLabel(capability)}
                 </Text>
               </View>
 
-              {available ? (
+              {interactive ? (
                 <View style={styles.actionRow}>
                   <Pressable
                     accessibilityRole="button"
@@ -351,6 +417,14 @@ export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
                   style={styles.unimplemented}
                   testID={`capability-note-${capability.id}`}>
                   {UNIMPLEMENTED_NOTE}
+                </Text>
+              )}
+
+              {capability.limitation === undefined ? null : (
+                <Text
+                  style={styles.limitation}
+                  testID={`capability-limitation-${capability.id}`}>
+                  {capability.limitation}
                 </Text>
               )}
 
@@ -470,6 +544,10 @@ const styles = StyleSheet.create({
     borderColor: colors.discount,
     color: colors.discount,
   },
+  statusLimited: {
+    borderColor: colors.accent,
+    color: colors.accent,
+  },
   statusMissing: {
     borderColor: colors.textFaint,
     color: colors.textHint,
@@ -498,6 +576,12 @@ const styles = StyleSheet.create({
     color: colors.textHint,
     fontSize: 12,
     lineHeight: 18,
+  },
+  limitation: {
+    marginTop: 8,
+    color: colors.accent,
+    fontSize: 11,
+    lineHeight: 17,
   },
   result: {
     marginTop: 8,

@@ -26,6 +26,10 @@
     // HarmonyOS key/value storage used by the platform-capability page's
     // local-storage round trip. The har ships an ArkTS any-thread turbo module
     // plus the generated C++ method map for the CAPI architecture.
-    "@react-native-oh-tpl/async-storage": "file:../../node_modules/@react-native-oh-tpl/async-storage/harmony/async_storage.har"
+    "@react-native-oh-tpl/async-storage": "file:../../node_modules/@react-native-oh-tpl/async-storage/harmony/async_storage.har",
+    // HarmonyOS clipboard used by the platform-capability page's clipboard
+    // row. Same shape as async-storage: ArkTS turbo module plus a C++ method
+    // map, both linked by hand.
+    "@react-native-oh-tpl/clipboard": "file:../../node_modules/@react-native-oh-tpl/clipboard/harmony/clipboard.har"
   }
 }

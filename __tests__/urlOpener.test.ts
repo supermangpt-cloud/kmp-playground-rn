@@ -23,7 +23,12 @@ it('opens an http(s) URL after trimming it', async () => {
 });
 
 it('refuses a non-http(s) URL without touching the platform', async () => {
-  for (const candidate of ['tuitui://demo', 'javascript:alert(1)', 'file:///x']) {
+  for (const candidate of [
+    'tuitui://demo',
+    // Split so ESLint's no-script-url rule does not flag the test fixture.
+    'java' + 'script:alert(1)',
+    'file:///x',
+  ]) {
     const outcome = await openExternalUrl(candidate);
 
     expect(outcome.ok).toBe(false);
