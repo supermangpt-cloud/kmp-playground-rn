@@ -497,6 +497,11 @@ export class CapabilityProbeTurboModule extends TurboModule {
         return [READ_CALENDAR_PERMISSION];
       case 'bluetooth':
         return [ACCESS_BLUETOOTH_PERMISSION];
+      case 'wifi_scan':
+        // The WiFi card asks only for approximate location before a scan; the
+        // precise LOCATION permission of the 动态权限 row is not needed by
+        // @ohos.wifiManager's scan/list path.
+        return [APPROXIMATELY_LOCATION_PERMISSION];
       case 'photo_write':
         // Only 去设置 reaches this id; the save itself requests the permission
         // in the app's ImageSave module, next to createAsset.

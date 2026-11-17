@@ -372,6 +372,25 @@ it('gives every implemented row a button, and no button to the rest', async () =
       continue;
     }
 
+    if (capability.id === 'wifi-network') {
+      expect(status).toBe('可用');
+      // The WiFi card draws 扫描 / 当前 SSID plus one 连接 per seen AP; it has
+      // no single capability action button.
+      expect(buttons).toHaveLength(0);
+      expect(notes).toHaveLength(0);
+      expect(
+        tree.root
+          .findAllByProps({testID: 'capability-wifi-scan'})
+          .filter(isHost),
+      ).toHaveLength(1);
+      expect(
+        tree.root
+          .findAllByProps({testID: 'capability-wifi-current'})
+          .filter(isHost),
+      ).toHaveLength(1);
+      continue;
+    }
+
     if (capability.status === 'unimplemented') {
       expect(status).toBe('未实现');
       // No button that could be pressed and do nothing.
@@ -408,6 +427,7 @@ it('gives every implemented row a button, and no button to the rest', async () =
     'url-opener',
     'camera-permission',
     'bluetooth-le',
+    'wifi-network',
     'image-save',
     'image-pick',
     'barcode-decode',

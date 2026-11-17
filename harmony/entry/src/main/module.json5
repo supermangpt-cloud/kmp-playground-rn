@@ -125,6 +125,17 @@
         }
       },
       {
+        // The platform-capability page's WiFi card. GET_WIFI_INFO (reading the
+        // scan list and the linked SSID) and SET_WIFI_INFO (the candidate
+        // config route) are both system_grant + normal on this device, so they
+        // are held on install and show no runtime dialog. APPROXIMATELY_LOCATION
+        // above is the one user_grant permission the scan path requests.
+        "name": "ohos.permission.GET_WIFI_INFO"
+      },
+      {
+        "name": "ohos.permission.SET_WIFI_INFO"
+      },
+      {
         // Saving the generated QR code writes a PNG into the system album. On
         // HarmonyOS createAsset needs WRITE_IMAGEVIDEO, a user_grant permission
         // whose availableLevel is system_basic, so a normal app receives it

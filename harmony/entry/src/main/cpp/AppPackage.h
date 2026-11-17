@@ -9,6 +9,7 @@
 #include "ImageSaveTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
 #include "ScanKitTurboModule.h"
+#include "WifiNetworkTurboModule.h"
 #include "RNOH/Package.h"
 #include "RNOH/TurboModuleFactory.h"
 
@@ -60,6 +61,11 @@ class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
     // 保存图片到相册 capability row.
     if (name == "ImageSave") {
       return std::make_shared<ImageSaveTurboModule>(ctx, name);
+    }
+    // The app's Wi-Fi bridge: the capability page's scan list, current SSID and
+    // the addCandidateConfig + connectToCandidateConfig route.
+    if (name == "WifiNetwork") {
+      return std::make_shared<WifiNetworkTurboModule>(ctx, name);
     }
     return nullptr;
   }

@@ -15,13 +15,14 @@
  * instead of offering a button that does nothing: `unimplemented` rows print
  * `RN 版本暂未实现`.
  *
- * Twelve rows are `available` now: local storage, the storage-directory card,
- * device information, network status, haptics, system share, URL opening, the
- * dynamic-permission card, Bluetooth LE, 保存图片到相册 and the two image rows.
- * The clipboard is `limited`: writing works, but HarmonyOS only grants
- * clipboard reads to the system PasteButton. Four rows are interactive rather
- * than a single button (`directories`, `haptics`, `permissions`,
- * `bluetooth-le`), which the screen renders as their own bodies.
+ * Thirteen rows are `available` now: local storage, the storage-directory
+ * card, device information, network status, haptics, system share, URL opening,
+ * the dynamic-permission card, Bluetooth LE, WiFi, 保存图片到相册 and the two
+ * image rows. The clipboard is `limited`: writing works, but HarmonyOS only
+ * grants clipboard reads to the system PasteButton. Five rows are interactive
+ * rather than a single button (`directories`, `haptics`, `permissions`,
+ * `bluetooth-le`, `wifi-network`), which the screen renders as their own
+ * bodies.
  *
  * Bluetooth LE is `available` because the adapted `react-native-ble-plx`
  * really scans and connects on the device (see
@@ -53,6 +54,7 @@ export type CapabilityAction =
   | 'system-share'
   | 'permissions'
   | 'bluetooth-le'
+  | 'wifi-network'
   | 'save-image';
 
 export type Capability = {
@@ -153,7 +155,8 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'wifi-network',
     title: 'WiFi',
     detail: '扫描附近 AP（SSID + RSSI + 加密），连接',
-    status: 'unimplemented',
+    status: 'available',
+    action: 'wifi-network',
   },
   {
     id: 'image-save',
