@@ -10,7 +10,8 @@
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "build:demo-html": "node scripts/build-demo-html.js",
-    "dev": "react-native bundle-harmony --dev"
+    "dev": "react-native bundle --platform harmony --dev true --entry-file index.js --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js --assets-dest harmony/entry/src/main/resources/rawfile/assets",
+    "bundle-harmony": "react-native bundle --platform harmony --dev false --entry-file index.js --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js --assets-dest harmony/entry/src/main/resources/rawfile/assets"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.21.0",
