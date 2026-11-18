@@ -232,6 +232,57 @@ before/after 是同一台真机、同一页面（商品列表）和同一主题�
 `devecocli ui screenshot` 的原始 1260×2720 输出，baseline 是上一单保留的
 630×1360 截图，所以只看内容对比，不比较像素细节。
 
+### 真机回归：H5 页面持续闪烁（#33，已修）
+
+现象：扫码打开 `https://umapp-qr.lap.360.cn/`（「打开推推小程序」落地页）后，底部
+提示「已拦截非 http(s) 跳转：tuitui://umapp」，页面内容却大约每秒闪一次，一直不停。
+
+根因（真机日志，非推断）：
+
+1. 这个落地页加载时会自己跳走：`!isWx && (location.href = deepLink)`，
+   `deepLink = 'tuitui://umapp' + location.search`。所以拦截到的是页面自己发起的导航。
+2. 适配包 13.10.3 的 `onLoadIntercept` 用「同步回调 + 250 ms 忙等」等 JS 决定。
+   真机日志里这次 `RNCWebViewModule::shouldStartLoadWithLockIdentifier` 用了
+   **539 ms**，超过 250 ms，适配包按「放行」返回；ArkWeb 于是真的把导航提交到
+   `tuitui://umapp`，得到 `ERR_UNKNOWN_URL_SCHEME(-302)`，当前文档被换成空白错误页。
+3. `WebPageScreen` 的「拒绝导航后重新挂载」恢复逻辑随后 `key + 1` 重挂 WebView，
+   新实例又加载同一个 URL，页面又自己跳 `tuitui://`、又空白、又重挂……循环约 0.9 s
+   一次，就是看到的闪烁。
+
+修复：重挂恢复只用于**内置本地文档**；远程页面被拒绝导航后不再重挂。远程页面是
+「页面自己决定离开」，重新加载只会再跳一次，必然死循环。本地 demo 的 `tuitui://`
+是点击触发的，仍按原逻辑重挂并续上计数。
+
+证据在 `docs/evidence/h5-flicker/`（同一台真机、同一 URL、同一主题、同一 1260×2720 视口）：
+
+| 证据 | 说明 |
+| --- | --- |
+| `before-h5-flicker-page.jpeg` | 修复前 16:35:41.568，页面内容刚渲染出来 |
+| `before-h5-flicker-blank.jpeg` | 1.99 s 后 16:35:43.559，同一位置只剩空白 |
+| `after-h5-flicker-a.jpeg` | 修复后，进入页面 4 s 之后 |
+| `after-h5-flicker-b.jpeg` | 再 2 s 后，画面不变 |
+
+像素差（ImageMagick `compare -metric AE`）：
+
+- 修复前，两帧间隔 1.99 s：整帧 211431 像素不同（6.17%）；WebView 区域
+  （1260×2128）211156 像素不同（7.87%，RMSE 14.8%），差异包围盒 1260×1649，
+  是整页变化（重载），不是局部条带。
+- 修复后，两帧间隔 2 s：整帧只有 27.5 像素（0.0008%）不同，包围盒 8×11、
+  位置 `(1000, 85)`，即状态栏时钟；页面区域 0 像素变化。
+
+`hilog` 也对得上：修复前约 0.9 s 出现一次 `create componentName= RNCWebView`
+（重挂）和一次 `OnLoadIntercept ... url:tuitui://uma***`；修复后一次进入只有初次
+挂载的两条 create，之后不再重挂。
+
+复现说明：真机扫码要对着二维码，无法自动化，所以这批证据是用一个**未提交**的临时
+入口把列表页「H5 演示」指向该 URL 后采集的（前后两次用的是同一个入口）。回归用的
+构建不带这个入口。
+
+剩余限制（适配包侧，另单处理）：远程页面被拒绝导航后，ArkWeb 仍会把当前文档换成
+空白错误页。适配包的「拒绝」实现得太晚，且没有保留原文档；本轮只保证不再循环重载。
+要让「加载即跳 App 外」的页面稳定留在 WebView 里，需要适配包修 `onLoadIntercept`
+（或按下面的路线升级到 `@react-native-ohos/react-native-webview`）。
+
 ### Android
 
 `npm ci` 后 `react-native config` 能看到 `react-native-webview` 已被 autolink；
@@ -246,5 +297,9 @@ before/after 是同一台真机、同一页面（商品列表）和同一主题�
   后续升级 RN 时应换 `@react-native-ohos/react-native-webview`（RN 0.72 对应 `~13.10.5`，API20+）。
 - 本轮只在鸿蒙真机上做交互验证；Android 只保证 native autolink + `:app:assembleDebug`
   编译通过，没有在 Android 设备上跑 H5 页的按钮回传/拦截。
-- 拦截后恢复页面用的是重新挂载 WebView，页面内除计数外的临时状态会重置；如果以后
-  页面有表单/滚动位置需要保留，应优先等适配包修复，或在 HTML 侧自行持久化。
+- 拦截后恢复页面用的是重新挂载 WebView，只对内置本地文档生效；页面内除计数外的临时
+  状态会重置，如果以后页面有表单/滚动位置需要保留，应优先等适配包修复，或在 HTML 侧
+  自行持久化。
+- 远程页面被拒绝导航后不再重挂：页面区域会停在 ArkWeb 的空白错误页（见上节），
+  底部提示仍会说明被拦截的 URL。这是适配包 `onLoadIntercept` 的实现限制，不是重挂
+  能解决的问题。

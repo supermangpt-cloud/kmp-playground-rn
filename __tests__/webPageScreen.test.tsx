@@ -119,6 +119,47 @@ describe('WebPageScreen', () => {
     });
   });
 
+  it('stops at a blocked navigation on a remote page instead of reloading it', () => {
+    // The mock counts native WebView mounts, so a remount is distinguishable
+    // from a re-render with the same source.
+    const mounts = (
+      globalThis as unknown as {__dsWebViewMockMounts: {count: number}}
+    ).__dsWebViewMockMounts;
+    mounts.count = 0;
+
+    let tree: renderer.ReactTestRenderer | undefined;
+    renderer.act(() => {
+      tree = renderer.create(
+        <WebPageScreen onBack={() => {}} url="https://umapp-qr.example.com/" />,
+      );
+    });
+    const screen = tree!.root;
+    expect(mounts.count).toBe(1);
+
+    const webView = screen.findByProps({testID: 'web-view'});
+    let allowed: boolean | undefined;
+    renderer.act(() => {
+      allowed = webView.props.onShouldStartLoadWithRequest({
+        url: 'tuitui://umapp',
+      });
+    });
+
+    expect(allowed).toBe(false);
+    expect(textOf(screen.findByProps({testID: 'web-blocked'}))).toBe(
+      '已拦截非 http(s) 跳转：tuitui://umapp',
+    );
+    // The page navigates to the app scheme by itself while loading (the 360 QR
+    // lander does `location.href = 'tuitui://umapp'`); reloading it would
+    // navigate again and blank again, i.e. flicker forever, so the remote
+    // document is never remounted.
+    expect(mounts.count).toBe(1);
+
+    renderer.act(() => {
+      tree!.unmount();
+    });
+    expect(mounts.count).toBe(0);
+  });
+
   it('opens a scanned http(s) URL instead of the local document', () => {
     let tree: renderer.ReactTestRenderer | undefined;
     renderer.act(() => {

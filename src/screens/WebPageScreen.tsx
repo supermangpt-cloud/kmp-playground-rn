@@ -73,10 +73,11 @@ export default function WebPageScreen({onBack, url}: Props): JSX.Element {
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const [blockedUrl, setBlockedUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Remounting the WebView is how the local document is restored after the
-  // HarmonyOS adaptation blanks it on a refused navigation (see the block
+  // Remounting the WebView is how the bundled local document is restored after
+  // the HarmonyOS adaptation blanks it on a refused navigation (see the block
   // handler). The instance key forces a fresh native view; the seeded count
-  // keeps the page's visible counter moving forward.
+  // keeps the page's visible counter moving forward. Remote pages are not
+  // remounted, see the reason in the block handler.
   const [webViewInstance, setWebViewInstance] = useState(0);
   const [restoredCount, setRestoredCount] = useState(0);
   const lastCount = useRef(0);
@@ -84,34 +85,51 @@ export default function WebPageScreen({onBack, url}: Props): JSX.Element {
   // finished; only that first document may use a non-http(s) URL.
   const initialDocument = useRef(true);
 
-  const handleShouldStartLoad = useCallback((request: LoadRequest): boolean => {
-    if (
-      initialDocument.current &&
-      (request.url === 'about:blank' || request.url.startsWith('data:'))
-    ) {
-      return true;
-    }
-    if (isNavigableUrl(request.url)) {
-      return true;
-    }
-    // Do not hand tuitui://, intent://, file://, javascript: … to the native
-    // WebView: it would either show ERR_UNKNOWN_URL_SCHEME or open another app.
-    setBlockedUrl(request.url);
-    // @react-native-oh-tpl/react-native-webview@13.10.3 on HarmonyOS executes a
-    // refused navigation by blanking the native view instead of leaving the
-    // current document alone (reproduced on ALN-AL00/API 26). The page is local,
-    // so remount the WebView with the same `source={{html}}`; the next instance
-    // gets a fresh `initialDocument` allowance and a counter seeded from the
-    // last postMessage, so the page stays interactive and the count keeps
-    // increasing. Reloading via the ref was not used: the document was loaded
-    // with `loadData`, and the adapter's reload()/refresh() gives no guarantee
-    // that the data document comes back; a remount with the same source is
-    // deterministic and lets us seed the counter.
-    initialDocument.current = true;
-    setRestoredCount(lastCount.current);
-    setWebViewInstance(instance => instance + 1);
-    return false;
-  }, []);
+  const handleShouldStartLoad = useCallback(
+    (request: LoadRequest): boolean => {
+      if (
+        initialDocument.current &&
+        (request.url === 'about:blank' || request.url.startsWith('data:'))
+      ) {
+        return true;
+      }
+      if (isNavigableUrl(request.url)) {
+        return true;
+      }
+      // Do not hand tuitui://, intent://, file://, javascript: … to the native
+      // WebView: it would either show ERR_UNKNOWN_URL_SCHEME or open another app.
+      setBlockedUrl(request.url);
+      // @react-native-oh-tpl/react-native-webview@13.10.3 on HarmonyOS executes a
+      // refused navigation by blanking the native view instead of leaving the
+      // current document alone (reproduced on ALN-AL00/API 26).
+      //
+      // Only the bundled document is remounted. A remote page must not be: the
+      // 360 QR lander (https://umapp-qr.lap.360.cn/) runs
+      // `location.href = 'tuitui://umapp'` while it loads, so reloading it loads
+      // the page again, it navigates again, the view blanks again — an endless
+      // reload loop that is visible as continuous flicker (issue #33). The
+      // refusal itself leaves ArkWeb's blank page behind; the notice below tells
+      // the user why the page is no longer there. Fixing the adapter so a refused
+      // navigation keeps the current document is a separate job, and would let
+      // the page stay.
+      //
+      // For the local document, remounting is deterministic: the next instance
+      // gets a fresh `initialDocument` allowance and a counter seeded from the
+      // last postMessage, so the page stays interactive and the count keeps
+      // increasing. Reloading via the ref was not used: the document was loaded
+      // with `loadData`, and the adapter's reload()/refresh() gives no guarantee
+      // that the data document comes back; a remount with the same source is
+      // deterministic and lets us seed the counter.
+      if (scannedUrl !== undefined) {
+        return false;
+      }
+      initialDocument.current = true;
+      setRestoredCount(lastCount.current);
+      setWebViewInstance(instance => instance + 1);
+      return false;
+    },
+    [scannedUrl],
+  );
 
   const handleMessage = useCallback((event: {nativeEvent: {data: string}}) => {
     const raw = event.nativeEvent.data;

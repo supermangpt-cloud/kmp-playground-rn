@@ -7,11 +7,28 @@
  */
 'use strict';
 
+/* global globalThis */
+
 const React = require('react');
 const {View} = require('react-native');
 
-const WebView = React.forwardRef((props, _ref) =>
-  React.createElement(View, props),
-);
+// The native view is destroyed and recreated when a test changes the WebView's
+// `key`; counting mounts lets a test tell a remount apart from a plain re-render
+// with the same source.
+// Kept on `globalThis` because Jest gives the test a separate copy of a mocked
+// module; the counter has to be the same object in both copies.
+const mounts =
+  globalThis.__dsWebViewMockMounts ||
+  (globalThis.__dsWebViewMockMounts = {count: 0});
 
-module.exports = {WebView, default: WebView};
+const WebView = React.forwardRef((props, _ref) => {
+  React.useEffect(() => {
+    mounts.count += 1;
+    return () => {
+      mounts.count -= 1;
+    };
+  }, []);
+  return React.createElement(View, props);
+});
+
+module.exports = {WebView, default: WebView, mounts};
