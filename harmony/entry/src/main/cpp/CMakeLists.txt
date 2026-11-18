@@ -28,14 +28,6 @@ add_subdirectory("${RNOH_CPP_DIR}" ./rn)
 add_subdirectory(
     "${OH_MODULE_DIR}/@react-native-oh-tpl/react-native-webview/src/main/cpp"
     ./webview)
-
-# react-native-svg's HarmonyOS adaptation registers its CAPI components from
-# C++, so only the CMake side has to be linked; there is no ArkTS component to
-# register in pages/Index.ets.
-add_subdirectory(
-    "${OH_MODULE_DIR}/@react-native-oh-tpl/react-native-svg/src/main/cpp"
-    ./svg)
-
 # async-storage's HarmonyOS adaptation: the ArkTS turbo module is registered
 # from PackageProvider.ets and its generated C++ method map from
 # PackageProvider.cpp, so its package is linked here as well.
@@ -57,6 +49,5 @@ add_library(rnoh_app SHARED
 
 target_link_libraries(rnoh_app PUBLIC rnoh)
 target_link_libraries(rnoh_app PUBLIC rnoh_webview)
-target_link_libraries(rnoh_app PUBLIC rnoh_svg)
 target_link_libraries(rnoh_app PUBLIC rnoh_async_storage)
 target_link_libraries(rnoh_app PUBLIC rnoh_clipboard)

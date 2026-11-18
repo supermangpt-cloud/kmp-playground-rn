@@ -293,6 +293,16 @@ struct ScanPage {
   }
 
   private async requestCameraAccess(): Promise<void> {
+    // `requestPermissionsFromUser` can report success without the token
+    // actually holding the permission (observed on RNOH 0.86: authResults[0]
+    // came back 0 while `checkAccessTokenSync` still said denied, so the page
+    // went straight to SCANNING and the preview stayed black with no dialog).
+    // Trust the token check, and only ask when it really is missing.
+    if (await this.hasPermission()) {
+      this.phase = ScanPhase.SCANNING;
+      this.startSession();
+      return;
+    }
     const granted = await this.requestPermission();
     if (this.finished) {
       return;

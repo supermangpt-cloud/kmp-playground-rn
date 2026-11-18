@@ -18,7 +18,7 @@ export default function ProductDetailScreen({
   product,
   onBack,
   onAddToCart,
-}: Props): JSX.Element {
+}: Props): React.JSX.Element {
   return (
     <ScrollView
       style={styles.scrollView}

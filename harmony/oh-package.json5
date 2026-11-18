@@ -9,6 +9,6 @@
   // ohpm resolve the RNOH core from that har's range. Keep the app's existing
   // RNOH 0.72.140 for every package, as the CI baseline does.
   "overrides": {
-    "@rnoh/react-native-openharmony": "0.72.140"
+    "@rnoh/react-native-openharmony": "0.86.1"
   }
 }

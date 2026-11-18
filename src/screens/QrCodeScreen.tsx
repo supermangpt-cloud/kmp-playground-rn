@@ -13,7 +13,7 @@
  * the device verification.
  */
 import React, {useCallback, useMemo, useState} from 'react';
-import {
+import {Image, 
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,7 +22,7 @@ import {
   View,
 } from 'react-native';
 
-import QRCode from '@react-native-oh-tpl/react-native-qrcode-svg';
+
 
 import {
   encodeQr,
@@ -31,7 +31,7 @@ import {
   QR_ERROR_CORRECTION_LEVELS,
   QrErrorCorrection,
 } from '../qr/qrCode';
-import {qrPngBase64} from '../qr/qrPng';
+import {qrModulePixels, qrPngBase64} from '../qr/qrPng';
 import {qrSaveTitle, savePngToAlbum} from '../native/imageSave';
 import {
   openAlbumWritePermissionSettings,
@@ -59,7 +59,7 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export default function QrCodeScreen({onBack}: Props): JSX.Element {
+export default function QrCodeScreen({onBack}: Props): React.JSX.Element {
   const [text, setText] = useState(DEFAULT_VALUE);
   const [level, setLevel] = useState<QrErrorCorrection>('M');
   const [save, setSave] = useState<SaveState>({saving: false});
@@ -177,13 +177,16 @@ export default function QrCodeScreen({onBack}: Props): JSX.Element {
         ) : (
           <>
             <View style={styles.codeCard} testID="qr-code">
-              <QRCode
-                value={text}
-                size={CODE_SIZE}
-                ecl={level}
-                color="#000000"
-                backgroundColor="#FFFFFF"
-                quietZone={qrQuietZonePixels(CODE_SIZE, code.size)}
+              <Image
+                source={{
+                  uri:
+                    'data:image/png;base64,' +
+                    qrPngBase64(code, {
+                      modulePixels: qrModulePixels(code.size),
+                    }),
+                }}
+                style={{width: CODE_SIZE, height: CODE_SIZE}}
+                resizeMode="contain"
               />
             </View>
             <Text style={styles.meta} testID="qr-meta">
