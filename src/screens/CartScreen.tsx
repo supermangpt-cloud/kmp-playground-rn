@@ -28,7 +28,7 @@ function CartLine({
   item: CartItem;
   onIncrement: () => void;
   onDecrement: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <View style={styles.line} testID={`cart-line-${item.productId}`}>
       <View style={styles.lineInfo}>
@@ -75,7 +75,7 @@ export default function CartScreen({
   onBack,
   onIncrement,
   onDecrement,
-}: Props): JSX.Element {
+}: Props): React.JSX.Element {
   return (
     <View style={styles.screen}>
       <View style={styles.headerRow}>

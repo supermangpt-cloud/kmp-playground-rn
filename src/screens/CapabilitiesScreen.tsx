@@ -249,7 +249,7 @@ function WifiBody({
   onPasswordChange,
   onPasswordConfirm,
   onPasswordCancel,
-}: WifiBodyProps): JSX.Element {
+}: WifiBodyProps): React.JSX.Element {
   const scanning = state.scanning;
   return (
     <View style={styles.wifi}>
@@ -430,7 +430,7 @@ function DirectoriesBody({
   state,
   onRefresh,
   onCopy,
-}: DirectoriesBodyProps): JSX.Element {
+}: DirectoriesBodyProps): React.JSX.Element {
   const loading = state.status === 'loading';
   return (
     <View style={styles.directories}>
@@ -560,7 +560,7 @@ function HapticsBody({
   onPress,
 }: {
   onPress: (strength: HapticStrength) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <View style={styles.hapticsRow}>
       {HAPTIC_STRENGTHS.map(({strength, label}) => (
@@ -614,7 +614,7 @@ function PermissionsBody({
   onQuery,
   onRequest,
   onSettings,
-}: PermissionsBodyProps): JSX.Element {
+}: PermissionsBodyProps): React.JSX.Element {
   return (
     <View style={styles.permissions}>
       <Text style={styles.permissionNote} testID="capability-permission-note">
@@ -756,7 +756,7 @@ function BluetoothBody({
   onScan,
   onConnect,
   onDisconnect,
-}: BluetoothBodyProps): JSX.Element {
+}: BluetoothBodyProps): React.JSX.Element {
   const scanning = state.scanning;
   // The scan list can hold hundreds of addresses (288 unique ones were seen
   // on this device). A plain map over all of them re-renders every row twice a
@@ -884,7 +884,7 @@ function BluetoothBody({
   );
 }
 
-export default function CapabilitiesScreen({onBack}: Props): JSX.Element {
+export default function CapabilitiesScreen({onBack}: Props): React.JSX.Element {
   const [outcomes, setOutcomes] = useState<Record<string, RowOutcome>>({});
   const [directories, setDirectories] = useState<DirectoriesState>({
     status: 'loading',

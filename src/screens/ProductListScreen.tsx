@@ -38,7 +38,7 @@ function ProductCard({
   product: Product;
   onOpen: () => void;
   onAdd: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <Pressable
       accessibilityRole="button"
@@ -80,7 +80,7 @@ function EntryChip({
   label: string;
   onPress?: () => void;
   testID: string;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <Pressable
       accessibilityRole="button"
@@ -98,7 +98,7 @@ function EntryChip({
  * right. The result lines are filled in by a later step; until then the status
  * reads like the KMP build's initial "还没有打开过 H5 页面" state.
  */
-function H5Panel({onOpen}: {onOpen: () => void}): JSX.Element {
+function H5Panel({onOpen}: {onOpen: () => void}): React.JSX.Element {
   return (
     <View style={styles.h5Panel}>
       <View style={styles.h5Text}>
@@ -132,7 +132,7 @@ function CartPanel({
   onIncrement: (productId: string) => void;
   onDecrement: (productId: string) => void;
   onRemove: (productId: string) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const empty = cart.count === 0;
   return (
     <View style={styles.cartPanel} testID="cart-summary">
@@ -250,7 +250,7 @@ export default function ProductListScreen({
   onOpenScan,
   onOpenWebPage,
   onOpenCapabilities,
-}: Props): JSX.Element {
+}: Props): React.JSX.Element {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>

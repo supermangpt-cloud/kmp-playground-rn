@@ -9,7 +9,6 @@
 #include "AppPackage.h"
 #include "AsyncStoragePackage.h"
 #include "ClipboardPackage.h"
-#include "SVGPackage.h"
 #include "WebViewPackage.h"
 
 using namespace rnoh;
@@ -25,7 +24,6 @@ std::vector<std::shared_ptr<Package>> PackageProvider::getPackages(
   // ClipboardPackage does the same for `RNCClipboard`.
   return {std::make_shared<AppPackage>(ctx),
           std::make_shared<WebViewPackage>(ctx),
-          std::make_shared<SVGPackage>(ctx),
           std::make_shared<AsyncStoragePackage>(ctx),
           std::make_shared<ClipboardPackage>(ctx)};
 }

@@ -54,7 +54,7 @@ type ScanNotice = {kind: 'result' | 'error'; text: string};
 
 const INITIAL_SCREEN: Screen = {kind: 'list'};
 
-function App(): JSX.Element {
+function App(): React.JSX.Element {
   const cart = useCart();
   // A stack instead of one value so back can pop detail/cart without special
   // cases; the last entry is the visible page.
@@ -141,7 +141,7 @@ function App(): JSX.Element {
     />
   );
 
-  let content: JSX.Element;
+  let content: React.JSX.Element;
   if (screen.kind === 'detail') {
     const product = findProduct(screen.productId);
     // An id that is not in the catalogue (only possible from a corrupted

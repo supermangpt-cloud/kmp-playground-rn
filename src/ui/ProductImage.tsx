@@ -35,7 +35,7 @@ export default function ProductImage({
   product,
   url,
   style,
-}: Props): JSX.Element {
+}: Props): React.JSX.Element {
   const [loaded, setLoaded] = useState(false);
   const bundled = bundledProductImage(product.imageName);
 

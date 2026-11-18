@@ -65,7 +65,7 @@ function parseWebMessage(raw: string): {count: number; at: string} | null {
   return null;
 }
 
-export default function WebPageScreen({onBack, url}: Props): JSX.Element {
+export default function WebPageScreen({onBack, url}: Props): React.JSX.Element {
   // Only a URL `isNavigableUrl` admits may reach the native view. Everything
   // else (including a missing prop) falls back to the local demo document.
   const scannedUrl =
