@@ -116,7 +116,9 @@ jobs:
   # not for it to land on its own, and those get merged by hand.
   merge:
     name: merge
-    needs: [js, android, harmony]
+    # `android` is continue-on-error (the HarmonyOS-only packages carry no
+    # Android sources), so requiring it here would skip every auto-merge.
+    needs: [js, harmony]
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.user.login == 'supermanlyy163' &&
