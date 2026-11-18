@@ -1,25 +1,25 @@
 /**
- * Autolinking overrides for the packages that have both a HarmonyOS adaptation
- * and an official cross-platform build.
+ * The `@react-native-oh-tpl/*` packages are HarmonyOS-only adaptations: they
+ * ship an ArkTS/har side and no Android or iOS sources. RN 0.86's autolinking
+ * scans `dependencies` and would otherwise emit `import com.reactnative…
+ * .Package` entries into PackageList.java for modules that do not exist,
+ * failing the Android build.
  *
- * `@react-native-oh-tpl/react-native-ble-plx` is the HarmonyOS fork: its
- * package.json still claims the upstream `ios`/`android` platforms, but the
- * package ships no `ios/` sources and its podspec points at the missing
- * directory, which makes `pod install` fail. The fork is wired into the
- * HarmonyOS build by hand (`harmony/entry/oh-package.json5`), not by
- * autolinking, so dropping its iOS/Android platforms here only stops the
- * autolinker from picking up a package that cannot build there.
- *
- * The upstream packages are direct dependencies and autolink normally on
- * Android and iOS.
+ * Android and iOS builds read the upstream libraries through the same JS
+ * wrappers; only HarmonyOS needs the adaptation, so opt these out of the other
+ * two platforms here.
  */
-module.exports = {
-  dependencies: {
-    '@react-native-oh-tpl/react-native-ble-plx': {
-      platforms: {
-        ios: null,
-        android: null,
-      },
-    },
-  },
-};
+const harmonyOnly = [
+  '@react-native-oh-tpl/async-storage',
+  '@react-native-oh-tpl/clipboard',
+  '@react-native-oh-tpl/react-native-ble-plx',
+  '@react-native-oh-tpl/react-native-image-picker',
+  '@react-native-oh-tpl/react-native-webview',
+];
+
+const dependencies = {};
+for (const name of harmonyOnly) {
+  dependencies[name] = {platforms: {android: null, ios: null}};
+}
+
+module.exports = {project: {android: {sourceDir: 'android'}}, dependencies};
