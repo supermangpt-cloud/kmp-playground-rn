@@ -1,25 +1,22 @@
 /**
- * Direct access to turbo modules registered by the HarmonyOS adaptations.
+ * HarmonyOS lookup for the JS-facing native modules.
  *
- * RN 0.72's `TurboModuleRegistry` checks the legacy `NativeModules` table
- * before the turbo module proxy, and RNOH answers every name from that table
- * with an empty stub. Asking `global.__turboModuleProxy` directly reaches the
- * ArkTS modules registered by `PackageProvider.ets`.
- *
- * Metro resolves this file instead of `turboModule.ts` when bundling for the
- * `harmony` platform; Android and iOS use the `NativeModules` lookup there.
+ * RNOH answers names through `TurboModuleRegistry`, the same table React
+ * Native itself reads. Asking it directly (instead of the legacy
+ * `NativeModules` table) is what the platform expects since RN 0.76: the
+ * legacy table only carries modules registered with the old interop layer,
+ * and none of this app's modules or its adapted libraries are.
  */
-type TurboModuleProxy = (name: string) => unknown;
+import {TurboModuleRegistry} from 'react-native';
+
+type TurboModule = object;
 
 export function getTurboModule<T>(name: string): T | null {
-  const proxy = (global as unknown as {__turboModuleProxy?: TurboModuleProxy})
-    .__turboModuleProxy;
-  if (typeof proxy !== 'function') {
-    return null;
-  }
   try {
-    const module = proxy(name);
-    return (module as T) ?? null;
+    // `get` returns null instead of throwing when the module is absent, which
+    // is what every caller here already handles.
+    const module = TurboModuleRegistry.get<TurboModule>(name);
+    return (module as T | null) ?? null;
   } catch {
     return null;
   }
