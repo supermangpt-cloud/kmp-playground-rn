@@ -14,7 +14,9 @@ import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
-import androidx.camera.view.PreviewView;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LifecycleOwner;
 
@@ -50,7 +52,9 @@ public class ScannerView extends FrameLayout {
     void onReady(@NonNull ScannerView view, int width, int height);
   }
 
-  private final PreviewView previewView;
+  private final SurfaceView surfaceView;
+  private Preview previewUseCase;
+  private Surface surface;
   private ExecutorService analyzer;
   private BarcodeScanner scanner;
   private ProcessCameraProvider cameraProvider;
@@ -64,10 +68,34 @@ public class ScannerView extends FrameLayout {
 
   public ScannerView(@NonNull Context context, @Nullable AttributeSet attrs) {
     super(context, attrs);
-    previewView = new PreviewView(context);
-    previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
+    // The Android root view of a bridgeless React Native app is a ReactSurfaceView
+    // (a SurfaceView). A TextureView nested in it never receives a usable
+    // surface — CameraX fails with 「Unable to configure camera 0, timeout!」 —
+    // and a plain SurfaceView child is composited *below* the root's surface, so
+    // the preview is invisible. A SurfaceView flagged as a media overlay is drawn
+    // above the app's surface, which is what the camera needs here.
+    surfaceView = new SurfaceView(context);
+    surfaceView.setZOrderMediaOverlay(true);
+    surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+      @Override
+      public void surfaceCreated(@NonNull SurfaceHolder holder) {
+        surface = holder.getSurface();
+        attachPreviewSurface();
+      }
+
+      @Override
+      public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
+        surface = holder.getSurface();
+        attachPreviewSurface();
+      }
+
+      @Override
+      public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+        surface = null;
+      }
+    });
     addView(
-        previewView,
+        surfaceView,
         new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
   }
@@ -125,7 +153,7 @@ public class ScannerView extends FrameLayout {
             return;
           }
           Preview preview = new Preview.Builder().build();
-          preview.setSurfaceProvider(previewView.getSurfaceProvider());
+          previewUseCase = preview;
 
           ImageAnalysis analysis =
               new ImageAnalysis.Builder()
@@ -135,9 +163,29 @@ public class ScannerView extends FrameLayout {
 
           cameraProvider.unbindAll();
           cameraProvider.bindToLifecycle(owner, selector(), preview, analysis);
+          attachPreviewSurface();
           listenerReady(getWidth(), getHeight());
         },
         ContextCompat.getMainExecutor(getContext()));
+  }
+
+  /** Hands the SurfaceView's surface to the pending Preview use case. */
+  private void attachPreviewSurface() {
+    Preview preview = previewUseCase;
+    Surface target = surface;
+    if (preview == null || target == null || !target.isValid()) {
+      return;
+    }
+    preview.setSurfaceProvider(
+        request -> {
+          request.provideSurface(
+              target,
+              ContextCompat.getMainExecutor(getContext()),
+              result -> {
+                // Nothing to do: the surface belongs to this view and is only
+                // released when it detaches.
+              });
+        });
   }
 
   private CameraSelector selector() {
@@ -177,6 +225,7 @@ public class ScannerView extends FrameLayout {
 
   private void stop() {
     started = false;
+    previewUseCase = null;
     if (cameraProvider != null) {
       cameraProvider.unbindAll();
       cameraProvider = null;

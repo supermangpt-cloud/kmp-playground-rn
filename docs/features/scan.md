@@ -242,6 +242,21 @@ ScanPage: scan finished: {"status":"ok","value":"<https URL，内部页面，此
 src/native/specs`），Android 构建时由 RN gradle 插件生成
 `ScannerViewManagerInterface/Delegate`。
 
+### 3.2.1 黑屏：根视图是 SurfaceView
+
+桥接模式（bridgeless）的 RN 根视图是 **`ReactSurfaceView`**，这给相机预览出了道难题：
+
+| 做法 | 结果 |
+| --- | --- |
+| `PreviewView` 默认（TextureView） | 嵌在 SurfaceView 里拿不到有效 surface，CameraX 报 `Unable to configure camera 0, timeout!`，预览全黑 |
+| `PreviewView` + `PERFORMANCE`（SurfaceView） | 能配置成功，但子 SurfaceView 被压在根 SurfaceView **下面**，仍然看不到 |
+
+最终方案：自己拿一个 `SurfaceView`，`setZOrderMediaOverlay(true)`（媒体层，画在 App
+自己的 surface 之上），把它的 `Surface` 通过 `Preview.setSurfaceProvider` 交给 CameraX。
+
+验证：预览区亮度均值 79、标准差 40（12–221），有真实图像而不是纯色块；点取消后
+`dumpsys media.camera` 的客户端数归零（CameraX 释放会话有几秒延迟）。
+
 `App.tsx` 用 `canDrawScannerInReactNative()`（当前只有 Android 为真）决定走哪条路：
 Android 压入 `{kind: 'scan'}` 渲染上面这个 RN 页；鸿蒙仍然打开 ArkTS 的
 `pages/ScanPage`，两条路径共用同一套结果处理（URL → H5 页，其他 → 结果对话框）。
