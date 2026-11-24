@@ -58,13 +58,22 @@ type ScanNotice = {kind: 'result' | 'error'; text: string};
 
 const INITIAL_SCREEN: Screen = {kind: 'list'};
 
+/** Survives a root-view remount (picture-in-picture), not a process restart. */
+let restoredHistory: Screen[] = [INITIAL_SCREEN];
+
 function App(): React.JSX.Element {
   const cart = useCart();
   // A stack instead of one value so back can pop detail/cart without special
   // cases; the last entry is the visible page.
-  const [history, setHistory] = useState<Screen[]>([INITIAL_SCREEN]);
+  // The stack lives outside the component as well as inside it: entering the
+  // system picture-in-picture window destroys and recreates React Native's root
+  // view, and a fresh mount would otherwise drop the user back on the list.
+  const [history, setHistory] = useState<Screen[]>(() => [...restoredHistory]);
   const historyRef = useRef(history);
   historyRef.current = history;
+  useEffect(() => {
+    restoredHistory = history;
+  }, [history]);
   const screen = history[history.length - 1];
   // A non-URL scan result (or a scanner failure) is a dialog over the list.
   const [scanNotice, setScanNotice] = useState<ScanNotice | null>(null);

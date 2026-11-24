@@ -14,15 +14,21 @@ import renderer from 'react-test-renderer';
 
 jest.mock('../src/native/specs/VideoViewNativeComponent', () => 'VideoView');
 
-const mockGetState = jest.fn<(tag: number) => Promise<unknown>>();
-const mockSeekTo = jest.fn<(tag: number, positionMs: number) => void>();
+const mockGetState = jest.fn<(playerId: string) => Promise<unknown>>();
+const mockEnterPip = jest.fn();
+const mockSetFullscreen = jest.fn();
+const mockSeekTo = jest.fn<(playerId: string, positionMs: number) => void>();
 
 jest.mock('../src/native/video', () => {
   const actual = jest.requireActual('../src/native/video');
   return {
     ...(actual as object),
-    getVideoState: (tag: number) => mockGetState(tag),
-    seekVideo: (tag: number, positionMs: number) => mockSeekTo(tag, positionMs),
+    getVideoState: (playerId: string) => mockGetState(playerId),
+    seekVideo: (playerId: string, positionMs: number) => mockSeekTo(playerId, positionMs),
+    isPipSupported: () => Promise.resolve(true),
+    isInPip: () => Promise.resolve(false),
+    enterPip: () => mockEnterPip(),
+    setFullscreen: (fullscreen: boolean) => mockSetFullscreen(fullscreen),
   };
 });
 
@@ -138,6 +144,22 @@ describe('VideoScreen', () => {
     renderer.act(() => pressable(tree, 'video-restart').props.onPress());
     expect(mockSeekTo).toHaveBeenCalledWith(playerId, 0);
     expect(textOf(hosts(tree, 'video-toggle')[0])).toBe('暂停');
+
+    renderer.act(() => tree.unmount());
+  });
+
+  it('offers 全屏 and 画中画, and hands both to the platform', async () => {
+    const tree = await render();
+    await settle();
+
+    const fullscreen = pressable(tree, 'video-fullscreen');
+    expect(textOf(fullscreen)).toBe('全屏');
+    renderer.act(() => fullscreen.props.onPress());
+    expect(mockSetFullscreen).toHaveBeenCalledWith(true);
+    expect(textOf(pressable(tree, 'video-fullscreen'))).toBe('退出全屏');
+
+    renderer.act(() => pressable(tree, 'video-pip').props.onPress());
+    expect(mockEnterPip).toHaveBeenCalled();
 
     renderer.act(() => tree.unmount());
   });

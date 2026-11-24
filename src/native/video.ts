@@ -22,6 +22,10 @@ export type VideoState = {
 type NativeVideoPlayer = {
   getState: (playerId: string) => Promise<VideoState | null>;
   seekTo: (playerId: string, positionMs: number) => void;
+  isPipSupported: () => Promise<boolean>;
+  isInPip: () => Promise<boolean>;
+  enterPip: () => void;
+  setFullscreen: (fullscreen: boolean) => void;
 };
 
 function player(): NativeVideoPlayer | null {
@@ -45,6 +49,47 @@ export function seekVideo(playerId: string, positionMs: number): void {
   const native = player();
   if (native !== null && typeof native.seekTo === 'function') {
     native.seekTo(playerId, positionMs);
+  }
+}
+
+/** Whether the platform offers the system picture-in-picture window. */
+export async function isPipSupported(): Promise<boolean> {
+  const native = player();
+  if (native === null || typeof native.isPipSupported !== 'function') {
+    return false;
+  }
+  try {
+    return await native.isPipSupported();
+  } catch {
+    return false;
+  }
+}
+
+/** True while the system shows this app in its picture-in-picture window. */
+export async function isInPip(): Promise<boolean> {
+  const native = player();
+  if (native === null || typeof native.isInPip !== 'function') {
+    return false;
+  }
+  try {
+    return await native.isInPip();
+  } catch {
+    return false;
+  }
+}
+
+export function enterPip(): void {
+  const native = player();
+  if (native !== null && typeof native.enterPip === 'function') {
+    native.enterPip();
+  }
+}
+
+/** Landscape + no system bars, or the reverse. */
+export function setFullscreen(fullscreen: boolean): void {
+  const native = player();
+  if (native !== null && typeof native.setFullscreen === 'function') {
+    native.setFullscreen(fullscreen);
   }
 }
 

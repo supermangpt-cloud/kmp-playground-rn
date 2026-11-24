@@ -18,7 +18,15 @@ import {
 } from 'react-native';
 
 import VideoView from '../native/specs/VideoViewNativeComponent';
-import {formatClock, getVideoState, seekVideo} from '../native/video';
+import {
+  enterPip,
+  formatClock,
+  getVideoState,
+  isInPip,
+  isPipSupported,
+  seekVideo,
+  setFullscreen,
+} from '../native/video';
 import {colors} from '../ui/theme';
 
 /** A short, stable H.264 sample that plays on every platform. */
@@ -43,6 +51,28 @@ export default function VideoScreen({onBack, url}: Props): React.JSX.Element {
   const [buffering, setBuffering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unreachable, setUnreachable] = useState(false);
+  const [fullscreen, setFullscreenFlag] = useState(false);
+  const [pipSupported, setPipSupported] = useState(false);
+  const [inPip, setInPip] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    isPipSupported().then(supported => {
+      if (!cancelled) {
+        setPipSupported(supported);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Leaving the page must not leave the window rotated or the bars hidden.
+  useEffect(() => {
+    return () => {
+      setFullscreen(false);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +80,10 @@ export default function VideoScreen({onBack, url}: Props): React.JSX.Element {
       const state = await getVideoState(playerId);
       if (cancelled) {
         return;
+      }
+      const pinned = await isInPip();
+      if (!cancelled) {
+        setInPip(pinned);
       }
       setUnreachable(state === null || !state.found);
       if (state === null || !state.found) {
@@ -79,7 +113,32 @@ export default function VideoScreen({onBack, url}: Props): React.JSX.Element {
     setPaused(false);
   }, [playerId]);
 
+  const toggleFullscreen = useCallback(() => {
+    setFullscreenFlag(current => {
+      setFullscreen(!current);
+      return !current;
+    });
+  }, []);
+
   const progress = duration > 0 ? Math.min(1, position / duration) : 0;
+
+  // In the system window the picture is the whole point: draw nothing else.
+  if (inPip) {
+    return (
+      <View style={styles.pip}>
+        <VideoView
+          style={StyleSheet.absoluteFill}
+          playerId={playerId}
+          url={source}
+          paused={paused}
+          muted={false}
+          loop={false}
+          resizeMode="contain"
+          testID="video-surface-pip"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen} testID="video-screen">
@@ -141,6 +200,27 @@ export default function VideoScreen({onBack, url}: Props): React.JSX.Element {
             style={({pressed}) => [styles.button, pressed && styles.pressed]}
             testID="video-restart">
             <Text style={styles.buttonText}>重播</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={fullscreen ? '退出全屏' : '全屏'}
+            onPress={toggleFullscreen}
+            style={({pressed}) => [styles.button, pressed && styles.pressed]}
+            testID="video-fullscreen">
+            <Text style={styles.buttonText}>{fullscreen ? '退出全屏' : '全屏'}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="画中画"
+            disabled={!pipSupported}
+            onPress={enterPip}
+            style={({pressed}) => [
+              styles.button,
+              !pipSupported && styles.buttonDisabled,
+              pressed && styles.pressed,
+            ]}
+            testID="video-pip">
+            <Text style={styles.buttonText}>画中画</Text>
           </Pressable>
         </View>
       </View>
@@ -236,6 +316,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  buttonDisabled: {
+    opacity: 0.4,
+  },
+  pip: {
+    flex: 1,
+    backgroundColor: '#000000',
   },
   pressed: {
     opacity: 0.7,

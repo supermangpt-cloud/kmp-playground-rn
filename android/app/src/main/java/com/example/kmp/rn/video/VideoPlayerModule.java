@@ -1,6 +1,18 @@
 package com.example.kmp.rn.video;
 
+import android.app.Activity;
+import android.app.PictureInPictureParams;
+import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.os.Build;
+import android.util.Rational;
+
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
@@ -24,6 +36,9 @@ import com.facebook.react.bridge.WritableMap;
 public class VideoPlayerModule extends ReactContextBaseJavaModule {
 
   public static final String NAME = "VideoPlayer";
+
+  /** What to restore when 全屏 is left; the Activity declares no orientation. */
+  private int orientationBeforeFullscreen = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
 
   public VideoPlayerModule(ReactApplicationContext reactContext) {
     super(reactContext);
@@ -57,6 +72,84 @@ public class VideoPlayerModule extends ReactContextBaseJavaModule {
           promise.resolve(state);
         });
   }
+
+  /** Whether this device supports the system picture-in-picture window. */
+  @ReactMethod
+  public void isPipSupported(com.facebook.react.bridge.Promise promise) {
+    Activity activity = getCurrentActivity();
+    boolean supported =
+        activity != null
+            && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            && activity
+                .getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE);
+    promise.resolve(supported);
+  }
+
+  /** True while the system shows this app in its picture-in-picture window. */
+  @ReactMethod
+  public void isInPip(com.facebook.react.bridge.Promise promise) {
+    Activity activity = getCurrentActivity();
+    promise.resolve(activity != null && activity.isInPictureInPictureMode());
+  }
+
+  @ReactMethod
+  public void enterPip() {
+    UiThreadUtil.runOnUiThread(
+        () -> {
+          Activity activity = getCurrentActivity();
+          if (activity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+          }
+          activity.enterPictureInPictureMode(
+              new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9)).build());
+        });
+  }
+
+  /**
+   * Turns the window landscape and hides the system bars, or puts both back.
+   *
+   * MainActivity declares no orientation, so leaving fullscreen restores the one
+   * the page had before entering — "unspecified" would hand the choice to the
+   * sensor and leave a phone lying flat in landscape.
+   */
+  @ReactMethod
+  public void setFullscreen(boolean fullscreen) {
+    UiThreadUtil.runOnUiThread(
+        () -> {
+          Activity activity = getCurrentActivity();
+          if (activity == null) {
+            return;
+          }
+          if (fullscreen) {
+            boolean landscape =
+                activity.getResources().getConfiguration().orientation
+                    == Configuration.ORIENTATION_LANDSCAPE;
+            orientationBeforeFullscreen =
+                landscape
+                    ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            activity.setRequestedOrientation(
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+          } else {
+            activity.setRequestedOrientation(orientationBeforeFullscreen);
+          }
+          android.view.Window window = activity.getWindow();
+          if (window == null) {
+            return;
+          }
+          WindowInsetsControllerCompat controller =
+              new WindowInsetsControllerCompat(window, window.getDecorView());
+          if (fullscreen) {
+            controller.hide(WindowInsetsCompat.Type.systemBars());
+            controller.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+          } else {
+            controller.show(WindowInsetsCompat.Type.systemBars());
+          }
+        });
+  }
+
 
   @ReactMethod
   public void seekTo(String playerId, double positionMs) {
