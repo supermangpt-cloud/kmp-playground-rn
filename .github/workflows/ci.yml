@@ -89,6 +89,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: install JS dependencies
+        # A shared npm cache left node_modules without `react`/`jpeg-js` even
+        # though the lock lists them, so this job installs through its own
+        # cache dir rather than reusing the runner's.
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
         run: npm ci
       - name: bundle the JS for HarmonyOS
         # Must run before assembleHap. bundle.harmony.js is a gitignored build
