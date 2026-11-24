@@ -28,6 +28,9 @@ public class CapabilityModulesPackage implements ReactPackage {
   @NonNull
   @Override
   public List<ViewManager> createViewManagers(@NonNull ReactApplicationContext reactContext) {
-    return Collections.emptyList();
+    // The camera preview the 扫一扫 page draws with; everything else on that
+    // screen is a React Native view.
+    return Arrays.asList(
+        new com.example.kmp.rn.scanner.ScannerViewManager(reactContext));
   }
 }

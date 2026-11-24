@@ -226,3 +226,26 @@ ScanPage: scan finished: {"status":"ok","value":"<https URL，内部页面，此
 - 系统扫码页（`startSystemScanner()`）保留但不在主路径，本单没有重测它。
 - 相册解码仍走上一单的 `detectBarcode.decode`（约 90 ms），本单未改动、未重测。
 - 顶部栏避让用的是系统 status bar avoid area；折叠屏/平板等不同形态没有验证。
+
+## 3.2 Android：RN 画界面，原生只给预览
+
+安卓的扫码页现在由 **React Native 绘制**，原生只提供一个 Fabric 组件：
+
+| 位置 | 内容 |
+| --- | --- |
+| `src/screens/ScanScreen.tsx` | ‹ 返回、标题、**取景框**、提示文案、取消——全是 RN 视图，跟其余页面同一套主题 |
+| `src/native/specs/ScannerViewNativeComponent.ts` | Fabric 组件 `ScannerView` 的 codegen spec（`facing` / `onDecoded` / `onFailed` / `onReady`） |
+| `android/.../rn/scanner/ScannerView.java` | `PreviewView` + CameraX + ML Kit，只负责出画面和识码，`onAttachedToWindow` 起、`onDetachedFromWindow` 停 |
+| `android/.../rn/scanner/ScannerViewManager.java` | 生成的 `ScannerViewManagerInterface` 实现 + 三个事件的派发 |
+
+`package.json` 里因此多了 `codegenConfig`（`type: components`，`jsSrcsDir:
+src/native/specs`），Android 构建时由 RN gradle 插件生成
+`ScannerViewManagerInterface/Delegate`。
+
+`App.tsx` 用 `canDrawScannerInReactNative()`（当前只有 Android 为真）决定走哪条路：
+Android 压入 `{kind: 'scan'}` 渲染上面这个 RN 页；鸿蒙仍然打开 ArkTS 的
+`pages/ScanPage`，两条路径共用同一套结果处理（URL → H5 页，其他 → 结果对话框）。
+
+验证（JEF-AN00）：页面元素全部是 RN 节点（`scan-frame` 是 `ViewGroup`，
+`scan-hint` 是 `TextView`，`scan-preview` 是 `FrameLayout`），`dumpsys media.camera`
+显示 device 0 被本 App 持有，点取消后回到列表且相机释放（客户端数量归零）。
