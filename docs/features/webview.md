@@ -306,15 +306,13 @@ before/after 是同一台真机、同一页面（商品列表）和同一主题�
 
 ## Android：模块未链接时的降级
 
-Android 目前把 `@react-native-oh-tpl/react-native-webview` 排除在 autolinking
-之外（见 `react-native.config.js`），而它的 JS 会在模块体里
-`TurboModuleRegistry.getEnforcing('RNCWebView')`，于是：
+Android 现在能正常渲染 H5：`react-native-webview` 的上游包参与 autolinking，
+`@react-native-oh-tpl/react-native-webview`（只有鸿蒙源码）被 `react-native.config.js`
+排除在 Android 平台之外。此前 Android 上报错「这个平台没有 WebView 模块」的原因见
+`capabilities.md` 的 autolinking 一节：`newArchEnabled` 曾为 `false`，库因此跳过
+new-arch codegen。
 
-- 顶层 `import` 会让整个 Bundle 在启动时报
-  `Invariant Violation: 'RNCWebView' could not be found`；
-- `import * as pkg` 再取 `pkg.WebView` 也不行——Babel 的通配符互操作会读到
-  这个包的 getter，同样把异常抛出来。
-
-所以 `WebPageScreen` 用 `try/catch` 里的 `require` 取组件；拿不到就渲染一块
-「这个平台没有 WebView 模块」的说明（带地址），而不是红屏。H5 演示与扫码打开
-的 URL 都走这条降级路径。
+降级路径仍然保留，用于模块确实没链接进来的构建（例如只装了 JS 依赖）：`WebPageScreen`
+在 `try/catch` 里 `require` 组件，取不到就渲染说明面板而不是红屏。必须用 `require`
+而不是顶层 `import`——这个包在模块体里就会调
+`TurboModuleRegistry.getEnforcing('RNCWebView')`，顶层导入会让整个 Bundle 起不来。

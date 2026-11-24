@@ -601,6 +601,28 @@ method map，`AppPackage.h` 与 `PackageProvider.ets` 各加一处；JS 侧是
 上 autolinking 找不到原生模块，`getTurboModule()` 返回空，页面要么显示「模块没有
 注册」，要么在目录卡的 catch 里触发 Hermes 的 catch-binding 问题直接红屏。
 
+### Android autolinking 的坑（RN 0.86）
+
+四个上游库（async-storage / clipboard / image-picker / webview）在 Android 上要真正
+链接进来，必须把 `android/gradle.properties` 的 `newArchEnabled` 设为 `true`：
+
+- 这些库用 `if (isNewArchitectureEnabled())` 决定要不要生成 new-arch codegen；
+- RN 0.86 是 bridgeless，**运行时永远是**新架构，但库读的是这个开关；
+- 开关为 `false` 时库跳过 codegen，autolinking 生成的
+  `Android-autolinking.cmake` 却仍然 `add_subdirectory` 到
+  `android/build/generated/source/codegen/jni`——目录不存在，CMake 直接失败。
+
+之前的「把四个库从 Android 平台排除」只是绕过，代价是那四行在 Android 上
+「模块没有注册」。现在改为：`newArchEnabled=true`，上游包正常 autolink，只有鸿蒙专用
+的 `@react-native-oh-tpl/*` 被排除。
+
+两个库在 RN 0.86 下还需要小修（都写在仓库里，不靠手改 node_modules）：
+
+| 库 | 症状 | 处理 |
+| --- | --- | --- |
+| `react-native-webview` 13.10.2 | `RNCWebViewManagerImpl.kt` 里 `loadUrl(args.getString(0))` 编译失败（RN 0.86 把 `getString` 变成可空） | `scripts/patch-rn-webview-android.js`（`postinstall` 跑）：改成 `?: ""` |
+| `react-native-image-picker` 7.0.3 | bridgeless 下 `NoSuchKeyException: includeBase64` —— 它的 `Options` 无条件读每个键 | `src/native/imagePicker.ts` 用 `PICKER_DEFAULTS` 补齐全部键再调用 |
+
 ### 接入方式
 
 | 层 | 做法 |

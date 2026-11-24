@@ -14,9 +14,30 @@ import {getTurboModule} from './turboModule';
 type PickerOptions = {
   mediaType?: 'photo' | 'video' | 'mixed';
   includeBase64?: boolean;
+  includeExtra?: boolean;
+  videoQuality?: 'low' | 'medium' | 'high';
+  cameraType?: 'back' | 'front';
+  quality?: number;
   maxWidth?: number;
   maxHeight?: number;
   selectionLimit?: number;
+  saveToPhotos?: boolean;
+  durationLimit?: number;
+};
+
+/** Every key ImagePicker 7.0.3's Android `Options` reads, at its default. */
+const PICKER_DEFAULTS: PickerOptions = {
+  mediaType: 'photo',
+  selectionLimit: 1,
+  includeBase64: false,
+  includeExtra: false,
+  videoQuality: 'high',
+  cameraType: 'back',
+  quality: 1,
+  maxHeight: 0,
+  maxWidth: 0,
+  saveToPhotos: false,
+  durationLimit: 0,
 };
 
 export type PickerAsset = {
@@ -61,7 +82,12 @@ export function launchImageLibrary(
 
   return new Promise((resolve, reject) => {
     try {
-      picker!.launchImageLibrary(options, result => {
+      // react-native-image-picker 7.0.3 reads every key of its Options
+      // unconditionally (`options.getBoolean("includeBase64")` and friends), and
+      // under the bridgeless architecture a missing key throws
+      // `NoSuchKeyException` instead of returning a default. The wrapper
+      // therefore always sends the full set, with the library's own defaults.
+      picker!.launchImageLibrary({...PICKER_DEFAULTS, ...options}, result => {
         if (result === undefined || result === null) {
           resolve({didCancel: true});
           return;
