@@ -254,6 +254,20 @@ src/native/specs`），Android 构建时由 RN gradle 插件生成
 最终方案：自己拿一个 `SurfaceView`，`setZOrderMediaOverlay(true)`（媒体层，画在 App
 自己的 surface 之上），把它的 `Surface` 通过 `Preview.setSurfaceProvider` 交给 CameraX。
 
+### 3.2.2 变形：裸 SurfaceView 不会自己按比例缩放
+
+`PreviewView` 会替你把 buffer 按比例缩放并居中裁切，裸 `SurfaceView` 不会——它把 buffer
+直接铺满自己的 surface，所以 4:3 的画面在更高的框里就被拉伸了。
+
+修法是交付 surface 的那一刻就用 **`SurfaceRequest.getResolution()`** 算出覆盖式尺寸：
+
+- `portraitAspect = min(w,h) / max(w,h)`（不管 buffer 是横是竖都成立）；
+- 按容器尺寸取 cover 后的 `surfaceWidth/Height`，`SurfaceHolder.setFixedSize()` 固定，
+  再用 `setX/setY` 居中，溢出的部分由父布局裁掉。
+
+不能用 `onSizeChanged` / `OnLayoutChangeListener` 来算：在 Fabric 的子视图上它们不回调
+（`onSizeChanged` 实测一次都没触发），必须在交付 surface 前算好。
+
 验证：预览区亮度均值 79、标准差 40（12–221），有真实图像而不是纯色块；点取消后
 `dumpsys media.camera` 的客户端数归零（CameraX 释放会话有几秒延迟）。
 
