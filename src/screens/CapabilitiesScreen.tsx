@@ -15,6 +15,7 @@
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -304,52 +305,63 @@ function WifiBody({
         </Text>
       )}
 
-      {state.passwordTarget === undefined ? null : (
-        <View
-          style={styles.wifiPasswordPanel}
-          testID="capability-wifi-password-panel">
-          <Text style={styles.wifiPasswordTitle}>
-            连接 {state.passwordTarget.ssid}
-          </Text>
-          <TextInput
-            value={state.password}
-            onChangeText={onPasswordChange}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="Wi-Fi 密码"
-            style={styles.wifiPasswordInput}
-            testID="capability-wifi-password"
-          />
-          <View style={styles.wifiPasswordActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="使用这个密码连接"
-              accessibilityState={{disabled: state.password.length === 0}}
-              disabled={state.password.length === 0}
-              onPress={onPasswordConfirm}
-              style={({pressed}) => [
-                styles.wifiPasswordConfirm,
-                state.password.length === 0 && styles.wifiScanDisabled,
-                pressed && styles.pressed,
-              ]}
-              testID="capability-wifi-password-confirm">
-              <Text style={styles.wifiPasswordConfirmText}>连接</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="取消输入密码"
-              onPress={onPasswordCancel}
-              style={({pressed}) => [
-                styles.wifiPasswordCancel,
-                pressed && styles.pressed,
-              ]}
-              testID="capability-wifi-password-cancel">
-              <Text style={styles.wifiPasswordCancelText}>取消</Text>
-            </Pressable>
+      {/* KMP shows this as a Material 3 AlertDialog; the row itself only ever
+          holds the button that opens it. */}
+      <Modal
+        visible={state.passwordTarget !== undefined}
+        transparent
+        animationType="fade"
+        onRequestClose={onPasswordCancel}>
+        <View style={styles.wifiDialogScrim}>
+          <View
+            style={styles.wifiDialogCard}
+            testID="capability-wifi-password-panel">
+            <Text style={styles.wifiDialogTitle}>
+              连接 {state.passwordTarget?.ssid ?? ''}
+            </Text>
+            <Text style={styles.wifiDialogLabel}>Wi-Fi 密码</Text>
+            <TextInput
+              value={state.password}
+              onChangeText={onPasswordChange}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              // KMP's OutlinedTextField does not take focus on open, so its
+              // dialog is shown in full and the keyboard only appears once the
+              // field is tapped. Auto-focusing here let the secure keyboard
+              // squeeze the card and clip its buttons.
+              style={styles.wifiDialogInput}
+              testID="capability-wifi-password"
+            />
+            <View style={styles.wifiDialogActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="取消输入密码"
+                onPress={onPasswordCancel}
+                style={({pressed}) => [styles.wifiDialogButton, pressed && styles.pressed]}
+                testID="capability-wifi-password-cancel">
+                <Text style={styles.wifiDialogCancelText}>取消</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="使用这个密码连接"
+                accessibilityState={{disabled: state.password.length === 0}}
+                disabled={state.password.length === 0}
+                onPress={onPasswordConfirm}
+                style={({pressed}) => [styles.wifiDialogButton, pressed && styles.pressed]}
+                testID="capability-wifi-password-confirm">
+                <Text
+                  style={[
+                    styles.wifiDialogConfirmText,
+                    state.password.length === 0 && styles.wifiDialogConfirmDisabled,
+                  ]}>
+                  连接
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
-      )}
+      </Modal>
 
       {state.scanned || state.accessPoints.length > 0 ? null : (
         <Text style={styles.wifiHint} testID="capability-wifi-hint">
@@ -2435,63 +2447,67 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  wifiPasswordPanel: {
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: colors.background,
+  /** Material 3 alert dialog: dimmed scrim plus a 28 dp rounded card. */
+  wifiDialogScrim: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.32)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
   },
-  wifiPasswordTitle: {
+  wifiDialogCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 28,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 16,
+  },
+  wifiDialogTitle: {
+    fontSize: 20,
+    fontWeight: '600',
     color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 20,
   },
-  wifiPasswordInput: {
-    marginTop: 6,
-    minHeight: 40,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  wifiDialogLabel: {
+    marginTop: 18,
+    fontSize: 12,
+    color: colors.textHint,
+  },
+  wifiDialogInput: {
+    marginTop: 4,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.divider,
-    backgroundColor: colors.surface,
     color: colors.textPrimary,
-    fontSize: 13,
+    fontSize: 15,
   },
-  wifiPasswordActions: {
-    marginTop: 8,
+  wifiDialogActions: {
+    marginTop: 20,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 8,
   },
-  wifiPasswordConfirm: {
-    minHeight: 34,
-    minWidth: 64,
-    paddingHorizontal: 14,
-    borderRadius: 17,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.accent,
+  wifiDialogButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  wifiPasswordConfirmText: {
-    color: colors.surface,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  wifiPasswordCancel: {
-    minHeight: 34,
-    minWidth: 64,
-    paddingHorizontal: 14,
-    borderRadius: 17,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.divider,
-  },
-  wifiPasswordCancelText: {
+  wifiDialogCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.textSecondary,
-    fontSize: 12,
+  },
+  wifiDialogConfirmText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  wifiDialogConfirmDisabled: {
+    opacity: 0.38,
   },
   wifiList: {
     marginTop: 6,
