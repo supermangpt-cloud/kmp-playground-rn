@@ -6,6 +6,7 @@
 #include "CapabilityProbeTurboModule.h"
 #include "BluetoothLeTurboModule.h"
 #include "generated/ScannerViewComponentDescriptor.h"
+#include "generated/ScannerViewJSIBinder.h"
 #include "ImagePickerTurboModule.h"
 #include "ImageSaveTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
@@ -84,6 +85,13 @@ class AppPackage : public Package {
   // every component the JS asks for; this one is generated from
   // `src/native/specs/ScannerViewNativeComponent.ts` by `codegen-harmony`, and
   // the ArkUI side is supplied by `ScannerViewPackage.ets`.
+  // Without this the JS side has no view config for the component, and RN logs
+  // 「Couldn't find ComponentJSIBinder for: ScannerView」, which also means its
+  // props and events are dropped.
+  ComponentJSIBinderByString createComponentJSIBinderByName() override {
+    return {{"ScannerView", std::make_shared<ScannerViewJSIBinder>()}};
+  }
+
   std::vector<facebook::react::ComponentDescriptorProvider>
   createComponentDescriptorProviders() override {
     return {

@@ -34,10 +34,12 @@ type Props = {
 export function canDrawScannerInReactNative(): boolean {
   // Android and HarmonyOS both have the native `ScannerView` now; iOS has no
   // scanner, so its 扫一扫 chip keeps reporting that the page is unavailable.
-  // React Native's own types stop at ios/android/windows/macos/web; RNOH adds
-  // 'harmony' at runtime, so the comparison goes through a plain string.
+  // Android only for now: on HarmonyOS the ArkUI preview draws correctly but the
+  // decode event does not reach JS yet (`Couldn't find ComponentJSIBinder` is
+  // gone, the event still does not arrive), so that platform keeps the ArkTS
+  // page until the bridge is sorted out.
   const os: string = Platform.OS;
-  return os === 'android' || os === 'harmony';
+  return os === 'android';
 }
 
 export default function ScanScreen({

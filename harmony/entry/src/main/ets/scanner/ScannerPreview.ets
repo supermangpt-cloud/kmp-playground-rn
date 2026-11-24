@@ -162,9 +162,16 @@ export struct ScannerPreview {
           return;
         }
         // One code is enough: the page leaves as soon as it has the value.
+        hilog.info(DOMAIN, TAG, 'decoded %{public}d chars, emitter=%{public}s, tag=%{public}d',
+          value.length, this.emitter === undefined ? 'missing' : 'present', this.rnComponentContext.tag);
         this.finished = true;
         this.stopSession();
-        this.emitter?.emit('decoded', { value });
+        try {
+          this.emitter?.emit('decoded', { value });
+          hilog.info(DOMAIN, TAG, 'decoded event emitted');
+        } catch (error) {
+          hilog.error(DOMAIN, TAG, 'emit failed: %{public}s', `${(error as BusinessError).message}`);
+        }
       });
       this.emitter?.emit('ready', { width: Math.round(this.previewWidth), height: Math.round(this.previewHeight) });
     } catch (error) {
