@@ -24,3 +24,6 @@ harmony/entry/src/main/resources/rawfile/assets/
 **/__pycache__/
 harmony/.cache/
 vendor/bundle/
+# Agent worktrees are full checkouts; never commit them as gitlinks.
+worktrees/
+.vscode/
