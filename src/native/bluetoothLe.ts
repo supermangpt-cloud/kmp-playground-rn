@@ -72,20 +72,14 @@ type NativeBleDevice = {
 };
 
 type NativeBlePlx = {
-  createClient: (restoreStateIdentifier?: string | null) => void;
   destroyClient: () => Promise<void>;
-  state: () => Promise<unknown>;
-  startDeviceScan: (
-    filteredUUIDs: string[] | null,
-    options: Record<string, unknown> | null,
-  ) => Promise<void>;
-  stopDeviceScan: () => Promise<void>;
-  connectToDevice: (
-    deviceId: string,
-    options?: Record<string, unknown>,
-  ) => Promise<unknown>;
-  cancelDeviceConnection: (deviceId: string) => Promise<unknown>;
-  isDeviceConnected: (deviceId: string) => Promise<boolean>;
+  startScan: () => Promise<void>;
+  stopScan: () => void;
+  getDevices: () => Array<{id: string; name: string; rssi: number}>;
+  connect: (deviceId: string) => Promise<void>;
+  disconnect: (deviceId: string) => void;
+  isConnected: (deviceId: string) => boolean;
+  getState: () => string;
 };
 
 type ScanHandlers = {
@@ -96,7 +90,7 @@ type ScanHandlers = {
 type ActiveScan = {
   found: Map<string, BleDevice>;
   handlers: ScanHandlers;
-  subscription: EmitterSubscription;
+  subscription: EmitterSubscription | null;
   timer: ReturnType<typeof setInterval>;
   dirty: boolean;
 };
@@ -104,6 +98,10 @@ type ActiveScan = {
 let native: NativeBlePlx | null = null;
 let clientCreated = false;
 let activeScan: ActiveScan | null = null;
+/** Links this wrapper opened; polled so a dropped one still reaches the page. */
+const connectedIds = new Set<string>();
+const disconnectListeners = new Set<(deviceId: string) => void>();
+let disconnectTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * The registered `BlePlx` module, or `null` when the platform's native module
@@ -116,12 +114,12 @@ function nativeModule(): NativeBlePlx | null {
   if (native !== null) {
     return native;
   }
-  const module = getTurboModule<NativeBlePlx>('BlePlx');
+  const module = getTurboModule<NativeBlePlx>('BluetoothLe');
   if (
     module === null ||
-    typeof module.createClient !== 'function' ||
-    typeof module.startDeviceScan !== 'function' ||
-    typeof module.connectToDevice !== 'function'
+    typeof module.startScan !== 'function' ||
+    typeof module.getDevices !== 'function' ||
+    typeof module.connect !== 'function'
   ) {
     return null;
   }
@@ -132,7 +130,7 @@ function nativeModule(): NativeBlePlx | null {
 function requireModule(): NativeBlePlx {
   const module = nativeModule();
   if (module === null) {
-    throw new Error('BlePlx 模块没有注册（本平台的蓝牙模块没有装进工程）');
+    throw new Error('蓝牙模块没有注册（本平台的蓝牙模块没有装进工程）');
   }
   return module;
 }
@@ -140,7 +138,6 @@ function requireModule(): NativeBlePlx {
 function requireClient(): NativeBlePlx {
   const module = requireModule();
   if (!clientCreated) {
-    module.createClient(null);
     clientCreated = true;
   }
   return module;
@@ -174,11 +171,19 @@ function mergeDevice(
   previous: BleDevice | undefined,
   next: BleDevice,
 ): BleDevice {
-  return {
-    id: next.id,
-    name: next.name ?? previous?.name,
-    rssi: next.rssi ?? previous?.rssi,
-  };
+  if (previous === undefined) {
+    return {id: next.id, name: next.name, rssi: next.rssi};
+  }
+  // The wrapper does not rely on the platform de-duplicating per id: a weaker
+  // repeat must not overwrite a stronger reading, and a nameless repeat must
+  // not erase a name that was already known.
+  const name =
+    next.name !== undefined && next.name.length > 0 ? next.name : previous.name;
+  let rssi = previous.rssi;
+  if (next.rssi !== undefined && (rssi === undefined || next.rssi > rssi)) {
+    rssi = next.rssi;
+  }
+  return {id: next.id, name, rssi};
 }
 
 /** Strongest signal first; unknown RSSI last; id breaks ties. */
@@ -308,10 +313,13 @@ export function classifyConnectError(
 }
 
 function asPowerState(value: unknown): BluetoothPowerState {
-  if (value === 'PoweredOn') {
+  // The app's own module answers 'on'/'off'; the adapted ble-plx answered
+  // 'PoweredOn'/'PoweredOff'. Accept both so the wrapper keeps working on the
+  // platforms that still use the library.
+  if (value === 'on' || value === 'PoweredOn') {
     return 'on';
   }
-  if (value === 'PoweredOff') {
+  if (value === 'off' || value === 'PoweredOff') {
     return 'off';
   }
   return 'unknown';
@@ -320,7 +328,7 @@ function asPowerState(value: unknown): BluetoothPowerState {
 /** Reads the platform's Bluetooth state; creates the native client on first call. */
 export async function readBluetoothState(): Promise<BluetoothPowerState> {
   try {
-    return asPowerState(await requireClient().state());
+    return asPowerState(requireClient().getState());
   } catch (error) {
     throw new Error(`读取蓝牙状态失败：${describeBleError(error, '未知原因')}`);
   }
@@ -359,13 +367,15 @@ export async function stopScan(): Promise<void> {
     return;
   }
   activeScan = null;
-  scan.subscription.remove();
+  if (scan.subscription !== null) {
+    scan.subscription.remove();
+  }
   clearInterval(scan.timer);
   if (scan.dirty) {
     scan.handlers.onDevices(deviceList(scan.found));
   }
   try {
-    await requireModule().stopDeviceScan();
+    requireModule().stopScan();
   } catch {
     // The platform may already have stopped the scan (Bluetooth switched
     // off); there is nothing left to stop and no reason to fail the page.
@@ -382,23 +392,38 @@ export async function stopScan(): Promise<void> {
 export async function startScan(handlers: ScanHandlers): Promise<void> {
   await stopScan();
   const module = requireClient();
+  // The native module keeps the discovered list and hands it over on demand,
+  // so the timer both refreshes it and repaints; there is no bridge event to
+  // subscribe to (which also keeps a busy room from crossing the boundary for
+  // every advertisement).
   const scan: ActiveScan = {
     found: new Map(),
     handlers,
-    subscription: DeviceEventEmitter.addListener('ScanEvent', payload => {
-      const {error, device} = readScanPayload(payload);
-      if (error !== undefined) {
-        handlers.onError(`扫描失败：${error.reason ?? '未知原因'}`);
-        return;
-      }
-      if (device === undefined) {
-        return;
-      }
-      scan.found.set(device.id, mergeDevice(scan.found.get(device.id), device));
-      scan.dirty = true;
-    }),
+    subscription: null,
     timer: setInterval(() => {
+      try {
+        for (const device of module.getDevices()) {
+          const merged = mergeDevice(scan.found.get(device.id), device);
+          const previous = scan.found.get(device.id);
+          // Only a new id or a changed signal counts as news; the platform
+          // repeats every advertisement it is still hearing.
+          if (
+            previous === undefined ||
+            previous.rssi !== merged.rssi ||
+            previous.name !== merged.name
+          ) {
+            scan.found.set(device.id, merged);
+            scan.dirty = true;
+          }
+        }
+      } catch (error) {
+        handlers.onError(`扫描中断：${describeBleError(error, '未知原因')}`);
+        void stopScan();
+        return;
+      }
       if (!scan.dirty) {
+        // Nothing new: repainting here would re-render the row every tick for
+        // as long as the scan runs.
         return;
       }
       scan.dirty = false;
@@ -408,8 +433,7 @@ export async function startScan(handlers: ScanHandlers): Promise<void> {
   };
   activeScan = scan;
   try {
-    // 2 = low-latency duty mode, so a busy room fills the list quickly.
-    await module.startDeviceScan(null, {scanMode: 2});
+    await module.startScan();
   } catch (error) {
     await stopScan();
     throw new Error(`无法开始扫描：${describeBleError(error, '未知原因')}`);
@@ -434,9 +458,7 @@ export async function connectDevice(
   let timedOut = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  const attempt = Promise.resolve().then(() =>
-    module.connectToDevice(deviceId, {timeout: timeoutMs}),
-  );
+  const attempt = Promise.resolve().then(() => module.connect(deviceId));
   const connected = attempt.then(
     () => undefined,
     error => {
@@ -454,13 +476,14 @@ export async function connectDevice(
 
   try {
     await Promise.race([connected, timeout]);
+  watchConnection(deviceId);
   } catch (error) {
     if (timedOut) {
       // Observe the late settlement: success means the platform did connect,
       // and the page has already told the user it failed.
       attempt.then(
         () => {
-          module.cancelDeviceConnection(deviceId).catch(() => {});
+          module.disconnect(deviceId);
         },
         () => {},
       );
@@ -476,7 +499,8 @@ export async function connectDevice(
 /** Disconnects one device; rejects when the platform will not close it. */
 export async function disconnectDevice(deviceId: string): Promise<void> {
   try {
-    await requireClient().cancelDeviceConnection(deviceId);
+    connectedIds.delete(deviceId);
+    requireClient().disconnect(deviceId);
   } catch (error) {
     throw new Error(
       `断开失败：${describeBleError(error, '未知原因（设备可能已经断开）')}`,
@@ -485,12 +509,18 @@ export async function disconnectDevice(deviceId: string): Promise<void> {
 }
 
 /**
- * Listens for disconnections the platform reports on its own (the peripheral
- * went away, or the system dropped the link). Returns an unsubscribe function.
+ * Listens for disconnections, whether the page asked for one or the link went
+ * away on its own. Returns an unsubscribe function.
+ *
+ * None of the three platform modules pushes a disconnect event: the app's own
+ * bridges keep the connection state and answer `isConnected`, so a link that
+ * dropped is noticed by polling the ids this wrapper connected. The legacy
+ * `DisconnectionEvent` is still honoured for a platform that emits it.
  */
 export function onDeviceDisconnected(
   listener: (deviceId: string) => void,
 ): () => void {
+  disconnectListeners.add(listener);
   const subscription = DeviceEventEmitter.addListener(
     'DisconnectionEvent',
     (payload: unknown) => {
@@ -503,5 +533,60 @@ export function onDeviceDisconnected(
       }
     },
   );
-  return () => subscription.remove();
+  const unsubscribe = (): void => {
+    disconnectListeners.delete(listener);
+    subscription.remove();
+    if (disconnectListeners.size === 0 && disconnectTimer !== null) {
+      clearInterval(disconnectTimer);
+      disconnectTimer = null;
+    }
+  };
+  if (connectedIds.size > 0) {
+    armDisconnectTimer();
+  }
+  return unsubscribe;
+}
+
+/** How often a live link is re-checked for one the platform dropped. */
+export const DISCONNECT_POLL_MS = 2000;
+
+/** Remembers a link so `onDeviceDisconnected` can notice when it dies. */
+function watchConnection(deviceId: string): void {
+  connectedIds.add(deviceId);
+  armDisconnectTimer();
+}
+
+/**
+ * Starts the liveness poll, but only while something is listening: an interval
+ * that outlives its listeners keeps Jest (and any host without a teardown)
+ * alive for nothing.
+ */
+function armDisconnectTimer(): void {
+  if (disconnectTimer !== null || disconnectListeners.size === 0) {
+    return;
+  }
+  disconnectTimer = setInterval(() => {
+    if (connectedIds.size === 0) {
+      if (disconnectTimer !== null) {
+        clearInterval(disconnectTimer);
+        disconnectTimer = null;
+      }
+      return;
+    }
+    for (const id of Array.from(connectedIds)) {
+      let alive = false;
+      try {
+        alive = requireClient().isConnected(id);
+      } catch {
+        alive = false;
+      }
+      if (alive) {
+        continue;
+      }
+      connectedIds.delete(id);
+      for (const listener of Array.from(disconnectListeners)) {
+        listener(id);
+      }
+    }
+  }, DISCONNECT_POLL_MS);
 }

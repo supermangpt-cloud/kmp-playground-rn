@@ -1,5 +1,6 @@
 /**
- * The 蓝牙 LE wrapper's own contract, on top of the HarmonyOS `BlePlx` module:
+ * The 蓝牙 LE wrapper's own contract, on top of the app's own `BluetoothLe`
+ * module (HarmonyOS ArkTS, Android Java, iOS ObjC++):
  * the three power states, de-duplicated and throttled scan results, the
  * classified connect failures (超时 / 拒绝 / 无权限 / 未知), the JS-side connect
  * deadline, and the disconnect listener.
@@ -20,34 +21,27 @@ jest.mock('../src/native/turboModule', () => ({
 
 type BleModule = typeof import('../src/native/bluetoothLe');
 
+type FakeDevice = {id: string; name: string; rssi: number};
+
 type FakeNative = {
-  createClient: jest.Mock<(restoreStateIdentifier?: string | null) => void>;
-  destroyClient: jest.Mock<() => Promise<void>>;
-  state: jest.Mock<() => Promise<unknown>>;
-  startDeviceScan: jest.Mock<
-    (
-      filteredUUIDs: string[] | null,
-      options: Record<string, unknown> | null,
-    ) => Promise<void>
-  >;
-  stopDeviceScan: jest.Mock<() => Promise<void>>;
-  connectToDevice: jest.Mock<
-    (deviceId: string, options?: Record<string, unknown>) => Promise<unknown>
-  >;
-  cancelDeviceConnection: jest.Mock<(deviceId: string) => Promise<unknown>>;
-  isDeviceConnected: jest.Mock<(deviceId: string) => Promise<boolean>>;
+  startScan: jest.Mock<() => Promise<void>>;
+  stopScan: jest.Mock<() => void>;
+  getDevices: jest.Mock<() => FakeDevice[]>;
+  connect: jest.Mock<(deviceId: string) => Promise<void>>;
+  disconnect: jest.Mock<(deviceId: string) => void>;
+  isConnected: jest.Mock<(deviceId: string) => boolean>;
+  getState: jest.Mock<() => string>;
 };
 
 function fakeNative(): FakeNative {
   return {
-    createClient: jest.fn(),
-    destroyClient: jest.fn(() => Promise.resolve()),
-    state: jest.fn(() => Promise.resolve('PoweredOn')),
-    startDeviceScan: jest.fn(() => Promise.resolve()),
-    stopDeviceScan: jest.fn(() => Promise.resolve()),
-    connectToDevice: jest.fn(() => Promise.resolve({})),
-    cancelDeviceConnection: jest.fn(() => Promise.resolve({})),
-    isDeviceConnected: jest.fn(() => Promise.resolve(false)),
+    startScan: jest.fn(() => Promise.resolve()),
+    stopScan: jest.fn(),
+    getDevices: jest.fn<() => FakeDevice[]>(() => []),
+    connect: jest.fn(() => Promise.resolve()),
+    disconnect: jest.fn(),
+    isConnected: jest.fn(() => false),
+    getState: jest.fn(() => 'on'),
   };
 }
 
@@ -67,19 +61,22 @@ it('reports the module as missing instead of pretending to scan', async () => {
   ble = require('../src/native/bluetoothLe') as BleModule;
 
   expect(ble.isBluetoothLeAvailable()).toBe(false);
-  await expect(ble.readBluetoothState()).rejects.toThrow('BlePlx 模块没有注册');
+  await expect(ble.readBluetoothState()).rejects.toThrow('蓝牙模块没有注册');
 });
 
 it.each([
+  // The app's own module answers 'on'/'off'; the adapted ble-plx that the
+  // older builds used answered 'PoweredOn'/'PoweredOff'. Both must map.
+  ['on', 'on'],
+  ['off', 'off'],
   ['PoweredOn', 'on'],
   ['PoweredOff', 'off'],
   ['Resetting', 'unknown'],
   ['Unknown', 'unknown'],
 ])('maps the platform state %s to %s', async (raw, expected) => {
-  native.state.mockImplementation(() => Promise.resolve(raw));
+  native.getState.mockImplementation(() => raw);
 
   await expect(ble.readBluetoothState()).resolves.toBe(expected);
-  expect(native.createClient).toHaveBeenCalledTimes(1);
 });
 
 it('de-duplicates scan events and flushes them at a bounded rate', async () => {
@@ -89,54 +86,55 @@ it('de-duplicates scan events and flushes them at a bounded rate', async () => {
     onDevices: found => devices.push(found),
     onError: () => {},
   });
-  expect(native.startDeviceScan).toHaveBeenCalledWith(null, {scanMode: 2});
+  expect(native.startScan).toHaveBeenCalledTimes(1);
 
-  DeviceEventEmitter.emit('ScanEvent', [
-    null,
+  // The module keeps the list; the wrapper reads it on its own cadence.
+  native.getDevices.mockReturnValue([
     {id: 'AA:BB', name: 'Speaker', rssi: -72},
-  ]);
-  DeviceEventEmitter.emit('ScanEvent', [
-    null,
     {id: 'CC:DD', name: 'Watch', rssi: -45},
   ]);
-  // Same id again: the newer RSSI wins and an empty name keeps the old one.
-  DeviceEventEmitter.emit('ScanEvent', [
-    null,
-    {id: 'AA:BB', name: '', rssi: -60},
-  ]);
 
-  // Nothing reaches the page per event: the page re-renders at most every
-  // SCAN_FLUSH_MS, not once per advertisement.
+  // Nothing reaches the page before the first tick.
   expect(devices).toHaveLength(0);
+  jest.advanceTimersByTime(400);
+
+  // A weaker repeat of a known id must not replace its RSSI.
+  native.getDevices.mockReturnValue([
+    {id: 'AA:BB', name: 'Speaker', rssi: -72},
+    {id: 'CC:DD', name: 'Watch', rssi: -45},
+    {id: 'AA:BB', name: '', rssi: -80},
+  ]);
   jest.advanceTimersByTime(400);
 
   expect(devices).toHaveLength(1);
   expect(devices[0]).toEqual([
     {id: 'CC:DD', name: 'Watch', rssi: -45},
-    {id: 'AA:BB', name: 'Speaker', rssi: -60},
+    {id: 'AA:BB', name: 'Speaker', rssi: -72},
   ]);
 
-  // No new advertisement: no redundant render.
-  jest.advanceTimersByTime(400);
+  // Nothing new on the platform: no redundant render.
+  jest.advanceTimersByTime(1200);
   expect(devices).toHaveLength(1);
 
   await ble.stopScan();
 });
 
-it('turns a scan error event into the row message', async () => {
+it('turns a failing device poll into the row message and stops', async () => {
+  jest.useFakeTimers();
   const errors: string[] = [];
   await ble.startScan({
     onDevices: () => {},
     onError: text => errors.push(text),
   });
 
-  DeviceEventEmitter.emit(
-    'ScanEvent',
-    JSON.stringify({errorCode: 600, reason: 'Scan start failed.'}),
-  );
+  native.getDevices.mockImplementation(() => {
+    throw new Error('蓝牙已关闭');
+  });
+  jest.advanceTimersByTime(400);
 
-  expect(errors).toEqual(['扫描失败：Scan start failed.']);
-  await ble.stopScan();
+  expect(errors).toEqual(['扫描中断：蓝牙已关闭']);
+  expect(ble.isScanning()).toBe(false);
+  expect(native.stopScan).toHaveBeenCalledTimes(1);
 });
 
 it('flushes the last results and stops the platform scan on 停止', async () => {
@@ -146,45 +144,42 @@ it('flushes the last results and stops the platform scan on 停止', async () =>
     onDevices: found => devices.push(found),
     onError: () => {},
   });
-  DeviceEventEmitter.emit('ScanEvent', [null, {id: 'AA:BB', rssi: -72}]);
+  native.getDevices.mockReturnValue([{id: 'AA:BB', name: '', rssi: -72}]);
+  jest.advanceTimersByTime(400);
+  expect(devices).toHaveLength(1);
 
   await ble.stopScan();
 
-  expect(devices).toHaveLength(1);
-  expect(native.stopDeviceScan).toHaveBeenCalledTimes(1);
+  expect(native.stopScan).toHaveBeenCalledTimes(1);
   expect(ble.isScanning()).toBe(false);
   // Idempotent: a second stop neither throws nor stops the platform twice.
   await ble.stopScan();
-  expect(native.stopDeviceScan).toHaveBeenCalledTimes(1);
+  expect(native.stopScan).toHaveBeenCalledTimes(1);
 });
 
 it('reports a refused scan start instead of an empty list', async () => {
-  native.startDeviceScan.mockImplementation(() =>
-    Promise.reject(
-      JSON.stringify({errorCode: 600, reason: 'Permission denied.'}),
-    ),
+  native.startScan.mockImplementation(() =>
+    Promise.reject(new Error('未授予蓝牙权限：请在系统设置中允许本 App 使用蓝牙后重试')),
   );
 
   await expect(
     ble.startScan({onDevices: () => {}, onError: () => {}}),
-  ).rejects.toThrow('无法开始扫描：Permission denied.');
+  ).rejects.toThrow('无法开始扫描：未授予蓝牙权限');
   expect(ble.isScanning()).toBe(false);
 });
 
 it('connects and disconnects through the same module', async () => {
   await ble.connectDevice('AA:BB', 1000);
-  expect(native.connectToDevice).toHaveBeenCalledWith('AA:BB', {
-    timeout: 1000,
-  });
+  expect(native.connect).toHaveBeenCalledWith('AA:BB');
 
   await ble.disconnectDevice('AA:BB');
-  expect(native.cancelDeviceConnection).toHaveBeenCalledWith('AA:BB');
+  expect(native.disconnect).toHaveBeenCalledWith('AA:BB');
 });
 
 it('gives up on an unreachable device after the connect deadline', async () => {
   jest.useFakeTimers();
-  // The ArkTS side never settles for a refused private address.
-  native.connectToDevice.mockImplementation(() => new Promise(() => {}));
+  // A private address that never accepts the link keeps the promise pending.
+  native.connect.mockImplementation(() => new Promise(() => {}));
 
   const attempt = ble.connectDevice('AA:BB');
   // The deadline is armed synchronously before `connectDevice` awaits.
@@ -218,16 +213,20 @@ it('classifies the platform error codes the card has to distinguish', () => {
   ).toBe('timeout');
 });
 
-it('reports a refused disconnect with the platform reason', async () => {
-  native.cancelDeviceConnection.mockImplementation(() =>
-    Promise.reject(
-      JSON.stringify({errorCode: 204, reason: 'The device is not connected.'}),
-    ),
-  );
+it('notices a link the platform dropped and tells the listener', async () => {
+  jest.useFakeTimers();
+  const seen: string[] = [];
+  const unsubscribe = ble.onDeviceDisconnected(id => seen.push(id));
 
-  await expect(ble.disconnectDevice('AA:BB')).rejects.toThrow(
-    '断开失败：The device is not connected.',
-  );
+  native.isConnected.mockReturnValue(true);
+  await ble.connectDevice('AA:BB', 1000);
+
+  // The peripheral goes away on its own: the module starts answering false.
+  native.isConnected.mockReturnValue(false);
+  jest.advanceTimersByTime(ble.DISCONNECT_POLL_MS * 2);
+
+  expect(seen).toEqual(['AA:BB']);
+  unsubscribe();
 });
 
 it('reports platform-reported disconnections and stops when unsubscribed', () => {

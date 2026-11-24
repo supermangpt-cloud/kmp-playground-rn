@@ -1,6 +1,10 @@
 module.exports = {
   // RN 0.86 moved the preset into its own package.
   preset: '@react-native/jest-preset',
+  // The card tests render a full screen and settle a promise chain; the CI
+  // runner is slower than a laptop, and the 5 s default was timing out there
+  // while passing locally.
+  testTimeout: 20000,
   // harmony/ holds the ohpm-installed RNOH package. It ships its own __tests__
   // (for the Hermes toolchain) and must not be collected as this app's tests.
   testPathIgnorePatterns: ['/node_modules/', '/harmony/'],

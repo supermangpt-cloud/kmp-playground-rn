@@ -3,8 +3,8 @@
 #include <memory>
 #include <string>
 
-#include "BlePlxTurboModule.h"
 #include "CapabilityProbeTurboModule.h"
+#include "BluetoothLeTurboModule.h"
 #include "ImagePickerTurboModule.h"
 #include "ImageSaveTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
@@ -50,17 +50,16 @@ class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
     if (name == "CapabilityProbe") {
       return std::make_shared<CapabilityProbeTurboModule>(ctx, name);
     }
-    // react-native-ble-plx's HarmonyOS adaptation ships the `BlePlx` ArkTS
-    // module and no C++ spec; this subclass supplies the method map the CAPI
-    // architecture needs for the capability page's 蓝牙 LE card.
-    if (name == "BlePlx") {
-      return std::make_shared<BlePlxTurboModule>(ctx, name);
-    }
     // The app's album writer: PNG bytes -> photoAccessHelper.createAsset
     // behind the WRITE_IMAGEVIDEO ACL, used by the QR page and the
     // 保存图片到相册 capability row.
     if (name == "ImageSave") {
       return std::make_shared<ImageSaveTurboModule>(ctx, name);
+    }
+    // The app's Bluetooth LE bridge: scan, connect and disconnect against
+    // @ohos.bluetooth.ble, behind the capability page's 蓝牙 LE card.
+    if (name == "BluetoothLe") {
+      return std::make_shared<BluetoothLeTurboModule>(ctx, name);
     }
     // The app's Wi-Fi bridge: the capability page's scan list, current SSID and
     // the addCandidateConfig + connectToCandidateConfig route.

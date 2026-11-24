@@ -28,10 +28,8 @@
     // row. Same shape as async-storage: ArkTS turbo module plus a C++ method
     // map, both linked by hand.
     "@react-native-oh-tpl/clipboard": "file:../../node_modules/@react-native-oh-tpl/clipboard/harmony/clipboard.har",
-    // HarmonyOS adaptation of react-native-ble-plx, backing the
     // platform-capability page's 蓝牙 LE card. Its har is ArkTS-only (the
     // `BlePlx` turbo module over @ohos.bluetooth.ble), so it is registered from
     // PackageProvider.ets and needs no CMake entry.
-    "@react-native-oh-tpl/react-native-ble-plx": "file:../../node_modules/@react-native-oh-tpl/react-native-ble-plx/harmony/rn_bleplx.har"
   }
 }

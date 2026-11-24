@@ -3,11 +3,11 @@ import { WebViewPackage } from '@react-native-oh-tpl/react-native-webview';
 import { ImagePickerViewPackage } from '@react-native-oh-tpl/react-native-image-picker';
 import { AsyncStoragePackage } from '@react-native-oh-tpl/async-storage';
 import { ClipboardPackage } from '@react-native-oh-tpl/clipboard';
-import { BlePlxPackage } from '@react-native-oh-tpl/react-native-ble-plx';
 import { ScanKitPackage } from './scan/ScanKitPackage';
 import { CapabilityProbePackage } from './capabilities/CapabilityProbePackage';
 import { ImageSavePackage } from './image/ImageSavePackage';
 import { WifiNetworkPackage } from './wifi/WifiNetworkPackage';
+import { BluetoothLePackage } from './bluetooth/BluetoothLePackage';
 
 /**
  * Third-party RN packages linked into the app. The list contains the
@@ -35,11 +35,8 @@ export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
     // capability page's row reports. Its read is refused by the platform
     // without PasteButton, which the page states instead of hiding.
     new ClipboardPackage(ctx),
-    // react-native-ble-plx's HarmonyOS adaptation: the `BlePlx` turbo module
     // over @ohos.bluetooth.ble, behind the capability page's 蓝牙 LE card. The
     // har has no C++ spec, so AppPackage adds its method map
-    // (BlePlxTurboModule.h); there is no CMake entry to add.
-    new BlePlxPackage(ctx),
     // The app's own Scan Kit bridge: the self-drawn `pages/ScanPage` scanner
     // (`customScan`), the system-scan fallback and native image decoding.
     new ScanKitPackage(ctx),
@@ -53,5 +50,6 @@ export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
     // The app's Wi-Fi bridge: @ohos.wifiManager behind the WiFi card. Its C++
     // method map lives in AppPackage.
     new WifiNetworkPackage(ctx),
+    new BluetoothLePackage(ctx),
   ];
 }
