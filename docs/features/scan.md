@@ -115,7 +115,22 @@ C++ 方法表同步为 `decodeImage(1)` / `startScanner(0)` / `startSystemScanne
 
 JS 包装在 `src/native/scanKit.ts`：`startScanner()` 把原生结果转成
 `{ok: true, value}` / `{ok: false, cancelled}` / `{ok: false, error}`，模块不存在
-（Android/iOS）时返回 `自绘扫码页只在鸿蒙版提供`。
+（iOS）时返回 `自绘扫码页只在鸿蒙版提供`。
+
+### 3.1 Android：CameraX + ML Kit
+
+安卓原先没有扫码，点「扫一扫」直接弹「自绘扫码页只在鸿蒙版提供」。KMP 的安卓版
+是用 **CameraX + ML Kit** 自己画的取景页（`ScanPreview.android.kt`），这里照同一
+套搭：
+
+- `ScanActivity`（`android/.../rn/scan/ScanActivity.java`）：代码构建界面，
+  `PreviewView` 预览 + 绿色取景框 + 「将二维码放入框内，即可自动识别」+ 取消；
+  `ImageAnalysis` 每帧交给 ML Kit 的 QR 模型，识到就 `setResult` 回传；
+- `ScanKitModule`（同目录）：`startScanner()` 启动上面那个 Activity 并
+  `resolve({status, value, reason})`，`decodeImage(uri)` 用 ML Kit 从文件解码；
+- 依赖：`androidx.camera:*:1.3.4` + `com.google.mlkit:barcode-scanning:17.2.0`。
+  ML Kit 的条码模型随包内置，不依赖 Google Play 服务；
+- `ScanActivity` 在 manifest 里 `exported="false"`，只能由本 App 启动。
 
 ## 4. RN 侧
 

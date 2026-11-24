@@ -21,7 +21,8 @@ public class CapabilityModulesPackage implements ReactPackage {
         new CapabilityProbeModule(reactContext),
         new ImageSaveModule(reactContext),
         new WifiNetworkModule(reactContext),
-        new BluetoothLeModule(reactContext));
+        new BluetoothLeModule(reactContext),
+        new com.example.kmp.rn.scan.ScanKitModule(reactContext));
   }
 
   @NonNull
