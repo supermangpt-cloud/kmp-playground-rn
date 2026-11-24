@@ -72,20 +72,14 @@ type NativeBleDevice = {
 };
 
 type NativeBlePlx = {
-  createClient: (restoreStateIdentifier?: string | null) => void;
   destroyClient: () => Promise<void>;
-  state: () => Promise<unknown>;
-  startDeviceScan: (
-    filteredUUIDs: string[] | null,
-    options: Record<string, unknown> | null,
-  ) => Promise<void>;
-  stopDeviceScan: () => Promise<void>;
-  connectToDevice: (
-    deviceId: string,
-    options?: Record<string, unknown>,
-  ) => Promise<unknown>;
-  cancelDeviceConnection: (deviceId: string) => Promise<unknown>;
-  isDeviceConnected: (deviceId: string) => Promise<boolean>;
+  startScan: () => Promise<void>;
+  stopScan: () => void;
+  getDevices: () => Array<{id: string; name: string; rssi: number}>;
+  connect: (deviceId: string) => Promise<void>;
+  disconnect: (deviceId: string) => void;
+  isConnected: (deviceId: string) => boolean;
+  getState: () => string;
 };
 
 type ScanHandlers = {
@@ -96,7 +90,7 @@ type ScanHandlers = {
 type ActiveScan = {
   found: Map<string, BleDevice>;
   handlers: ScanHandlers;
-  subscription: EmitterSubscription;
+  subscription: EmitterSubscription | null;
   timer: ReturnType<typeof setInterval>;
   dirty: boolean;
 };
@@ -116,12 +110,12 @@ function nativeModule(): NativeBlePlx | null {
   if (native !== null) {
     return native;
   }
-  const module = getTurboModule<NativeBlePlx>('BlePlx');
+  const module = getTurboModule<NativeBlePlx>('BluetoothLe');
   if (
     module === null ||
-    typeof module.createClient !== 'function' ||
-    typeof module.startDeviceScan !== 'function' ||
-    typeof module.connectToDevice !== 'function'
+    typeof module.startScan !== 'function' ||
+    typeof module.getDevices !== 'function' ||
+    typeof module.connect !== 'function'
   ) {
     return null;
   }
@@ -140,7 +134,6 @@ function requireModule(): NativeBlePlx {
 function requireClient(): NativeBlePlx {
   const module = requireModule();
   if (!clientCreated) {
-    module.createClient(null);
     clientCreated = true;
   }
   return module;
@@ -308,10 +301,13 @@ export function classifyConnectError(
 }
 
 function asPowerState(value: unknown): BluetoothPowerState {
-  if (value === 'PoweredOn') {
+  // The app's own module answers 'on'/'off'; the adapted ble-plx answered
+  // 'PoweredOn'/'PoweredOff'. Accept both so the wrapper keeps working on the
+  // platforms that still use the library.
+  if (value === 'on' || value === 'PoweredOn') {
     return 'on';
   }
-  if (value === 'PoweredOff') {
+  if (value === 'off' || value === 'PoweredOff') {
     return 'off';
   }
   return 'unknown';
@@ -320,7 +316,7 @@ function asPowerState(value: unknown): BluetoothPowerState {
 /** Reads the platform's Bluetooth state; creates the native client on first call. */
 export async function readBluetoothState(): Promise<BluetoothPowerState> {
   try {
-    return asPowerState(await requireClient().state());
+    return asPowerState(requireClient().getState());
   } catch (error) {
     throw new Error(`读取蓝牙状态失败：${describeBleError(error, '未知原因')}`);
   }
@@ -359,13 +355,15 @@ export async function stopScan(): Promise<void> {
     return;
   }
   activeScan = null;
-  scan.subscription.remove();
+  if (scan.subscription !== null) {
+    scan.subscription.remove();
+  }
   clearInterval(scan.timer);
   if (scan.dirty) {
     scan.handlers.onDevices(deviceList(scan.found));
   }
   try {
-    await requireModule().stopDeviceScan();
+    requireModule().stopScan();
   } catch {
     // The platform may already have stopped the scan (Bluetooth switched
     // off); there is nothing left to stop and no reason to fail the page.
@@ -382,34 +380,31 @@ export async function stopScan(): Promise<void> {
 export async function startScan(handlers: ScanHandlers): Promise<void> {
   await stopScan();
   const module = requireClient();
+  // The native module keeps the discovered list and hands it over on demand,
+  // so the timer both refreshes it and repaints; there is no bridge event to
+  // subscribe to (which also keeps a busy room from crossing the boundary for
+  // every advertisement).
   const scan: ActiveScan = {
     found: new Map(),
     handlers,
-    subscription: DeviceEventEmitter.addListener('ScanEvent', payload => {
-      const {error, device} = readScanPayload(payload);
-      if (error !== undefined) {
-        handlers.onError(`扫描失败：${error.reason ?? '未知原因'}`);
-        return;
-      }
-      if (device === undefined) {
-        return;
-      }
-      scan.found.set(device.id, mergeDevice(scan.found.get(device.id), device));
-      scan.dirty = true;
-    }),
+    subscription: null,
     timer: setInterval(() => {
-      if (!scan.dirty) {
+      try {
+        for (const device of module.getDevices()) {
+          scan.found.set(device.id, mergeDevice(scan.found.get(device.id), device));
+        }
+      } catch (error) {
+        handlers.onError(`扫描中断：${describeBleError(error, '未知原因')}`);
+        void stopScan();
         return;
       }
-      scan.dirty = false;
       handlers.onDevices(deviceList(scan.found));
     }, SCAN_FLUSH_MS),
     dirty: false,
   };
   activeScan = scan;
   try {
-    // 2 = low-latency duty mode, so a busy room fills the list quickly.
-    await module.startDeviceScan(null, {scanMode: 2});
+    await module.startScan();
   } catch (error) {
     await stopScan();
     throw new Error(`无法开始扫描：${describeBleError(error, '未知原因')}`);
@@ -434,9 +429,7 @@ export async function connectDevice(
   let timedOut = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  const attempt = Promise.resolve().then(() =>
-    module.connectToDevice(deviceId, {timeout: timeoutMs}),
-  );
+  const attempt = Promise.resolve().then(() => module.connect(deviceId));
   const connected = attempt.then(
     () => undefined,
     error => {
@@ -460,7 +453,7 @@ export async function connectDevice(
       // and the page has already told the user it failed.
       attempt.then(
         () => {
-          module.cancelDeviceConnection(deviceId).catch(() => {});
+          module.disconnect(deviceId);
         },
         () => {},
       );
@@ -476,7 +469,7 @@ export async function connectDevice(
 /** Disconnects one device; rejects when the platform will not close it. */
 export async function disconnectDevice(deviceId: string): Promise<void> {
   try {
-    await requireClient().cancelDeviceConnection(deviceId);
+    requireClient().disconnect(deviceId);
   } catch (error) {
     throw new Error(
       `断开失败：${describeBleError(error, '未知原因（设备可能已经断开）')}`,
