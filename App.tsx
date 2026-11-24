@@ -36,6 +36,7 @@ import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
 import QrCodeScreen from './src/screens/QrCodeScreen';
 import ScanScreen, {canDrawScannerInReactNative} from './src/screens/ScanScreen';
+import VideoScreen from './src/screens/VideoScreen';
 import WebPageScreen from './src/screens/WebPageScreen';
 import {useCart} from './src/state/cart';
 import {colors} from './src/ui/theme';
@@ -49,7 +50,8 @@ export type Screen =
   | {kind: 'qr'}
   | {kind: 'web'; url?: string}
   | {kind: 'capabilities'}
-  | {kind: 'scan'};
+  | {kind: 'scan'}
+  | {kind: 'video'};
 
 /** A scanned value that is not a web page, or a scan failure to explain. */
 type ScanNotice = {kind: 'result' | 'error'; text: string};
@@ -157,6 +159,7 @@ function App(): React.JSX.Element {
       onRemove={cart.remove}
       onOpenQr={() => push({kind: 'qr'})}
       onOpenScan={openScan}
+      onOpenVideo={() => push({kind: 'video'})}
       onOpenWebPage={() => push({kind: 'web'})}
       onOpenCapabilities={() => push({kind: 'capabilities'})}
     />
@@ -190,6 +193,8 @@ function App(): React.JSX.Element {
     content = <QrCodeScreen onBack={back} />;
   } else if (screen.kind === 'web') {
     content = <WebPageScreen onBack={back} url={screen.url} />;
+  } else if (screen.kind === 'video') {
+    content = <VideoScreen onBack={back} />;
   } else if (screen.kind === 'scan') {
     content = (
       <ScanScreen

@@ -26,6 +26,7 @@ type Props = {
   onRemove: (productId: string) => void;
   onOpenQr: () => void;
   onOpenScan: () => void;
+  onOpenVideo: () => void;
   onOpenWebPage: () => void;
   onOpenCapabilities: () => void;
 };
@@ -248,6 +249,7 @@ export default function ProductListScreen({
   onRemove,
   onOpenQr,
   onOpenScan,
+  onOpenVideo,
   onOpenWebPage,
   onOpenCapabilities,
 }: Props): React.JSX.Element {
@@ -271,6 +273,7 @@ export default function ProductListScreen({
         <View style={styles.chipRow}>
           <EntryChip label="扫一扫" onPress={onOpenScan} testID="scan-entry" />
           <EntryChip label="二维码" onPress={onOpenQr} testID="qr-entry" />
+          <EntryChip label="视频" onPress={onOpenVideo} testID="video-entry" />
           <EntryChip
             label="平台能力"
             onPress={onOpenCapabilities}
