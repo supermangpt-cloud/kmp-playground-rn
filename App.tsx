@@ -35,6 +35,7 @@ import CartScreen from './src/screens/CartScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
 import QrCodeScreen from './src/screens/QrCodeScreen';
+import ScanScreen, {canDrawScannerInReactNative} from './src/screens/ScanScreen';
 import WebPageScreen from './src/screens/WebPageScreen';
 import {useCart} from './src/state/cart';
 import {colors} from './src/ui/theme';
@@ -47,7 +48,8 @@ export type Screen =
   | {kind: 'cart'}
   | {kind: 'qr'}
   | {kind: 'web'; url?: string}
-  | {kind: 'capabilities'};
+  | {kind: 'capabilities'}
+  | {kind: 'scan'};
 
 /** A scanned value that is not a web page, or a scan failure to explain. */
 type ScanNotice = {kind: 'result' | 'error'; text: string};
@@ -85,6 +87,12 @@ function App(): React.JSX.Element {
    * failure) is shown in a dialog; a plain cancel leaves the list untouched.
    */
   const openScan = useCallback(async () => {
+    // Android draws the scan page in React Native (only the camera preview is
+    // native); HarmonyOS opens its ArkTS page, which owns the whole screen.
+    if (canDrawScannerInReactNative()) {
+      push({kind: 'scan'});
+      return;
+    }
     if (scanning.current) {
       return;
     }
@@ -107,6 +115,19 @@ function App(): React.JSX.Element {
       scanning.current = false;
     }
   }, [push]);
+
+  /** One decoded value, whether it came from the RN page or the ArkTS one. */
+  const handleScannedValue = useCallback(
+    (raw: string) => {
+      const text = raw.trim();
+      if (isWebUrl(text)) {
+        push({kind: 'web', url: text});
+        return;
+      }
+      setScanNotice({kind: 'result', text: raw});
+    },
+    [push],
+  );
 
   // Android's hardware back key and the HarmonyOS back gesture both arrive as
   // `hardwareBackPress`. Returning true consumes the press; on the list we
@@ -169,6 +190,22 @@ function App(): React.JSX.Element {
     content = <QrCodeScreen onBack={back} />;
   } else if (screen.kind === 'web') {
     content = <WebPageScreen onBack={back} url={screen.url} />;
+  } else if (screen.kind === 'scan') {
+    content = (
+      <ScanScreen
+        onBack={back}
+        onDecoded={value => {
+          // Leave the camera behind before pushing the result, so the preview
+          // is released rather than left running under the next screen.
+          back();
+          handleScannedValue(value);
+        }}
+        onFailed={reason => {
+          back();
+          setScanNotice({kind: 'error', text: reason});
+        }}
+      />
+    );
   } else if (screen.kind === 'capabilities') {
     content = <CapabilitiesScreen onBack={back} />;
   } else {
