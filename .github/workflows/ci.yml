@@ -103,6 +103,11 @@ jobs:
       - name: install the RNOH har
         working-directory: harmony
         run: ohpm install --all
+      - name: generate the Fabric component and TurboModule boilerplate
+        # hvigor does not run `codegen-harmony`; the app's own `ScannerView`
+        # component descriptor and descriptor wrapper come from here, and
+        # cpp/generated is gitignored.
+        run: npm run codegen:harmony
       - name: add the generated type stub the ble-plx har imports
         # This app has no RNOH codegen (see docs/harmony-setup.md), but the
         # adapted ble-plx har imports `@rnoh/react-native-openharmony/generated/ts`

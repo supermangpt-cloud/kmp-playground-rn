@@ -8,6 +8,7 @@ import { CapabilityProbePackage } from './capabilities/CapabilityProbePackage';
 import { ImageSavePackage } from './image/ImageSavePackage';
 import { WifiNetworkPackage } from './wifi/WifiNetworkPackage';
 import { BluetoothLePackage } from './bluetooth/BluetoothLePackage';
+import { ScannerViewPackage } from './scanner/ScannerViewPackage';
 
 /**
  * Third-party RN packages linked into the app. The list contains the
@@ -51,5 +52,6 @@ export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
     // method map lives in AppPackage.
     new WifiNetworkPackage(ctx),
     new BluetoothLePackage(ctx),
+    new ScannerViewPackage(ctx),
   ];
 }
