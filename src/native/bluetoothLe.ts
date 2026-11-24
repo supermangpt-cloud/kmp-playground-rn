@@ -98,6 +98,10 @@ type ActiveScan = {
 let native: NativeBlePlx | null = null;
 let clientCreated = false;
 let activeScan: ActiveScan | null = null;
+/** Links this wrapper opened; polled so a dropped one still reaches the page. */
+const connectedIds = new Set<string>();
+const disconnectListeners = new Set<(deviceId: string) => void>();
+let disconnectTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * The registered `BlePlx` module, or `null` when the platform's native module
@@ -126,7 +130,7 @@ function nativeModule(): NativeBlePlx | null {
 function requireModule(): NativeBlePlx {
   const module = nativeModule();
   if (module === null) {
-    throw new Error('BlePlx 模块没有注册（本平台的蓝牙模块没有装进工程）');
+    throw new Error('蓝牙模块没有注册（本平台的蓝牙模块没有装进工程）');
   }
   return module;
 }
@@ -167,11 +171,19 @@ function mergeDevice(
   previous: BleDevice | undefined,
   next: BleDevice,
 ): BleDevice {
-  return {
-    id: next.id,
-    name: next.name ?? previous?.name,
-    rssi: next.rssi ?? previous?.rssi,
-  };
+  if (previous === undefined) {
+    return {id: next.id, name: next.name, rssi: next.rssi};
+  }
+  // The wrapper does not rely on the platform de-duplicating per id: a weaker
+  // repeat must not overwrite a stronger reading, and a nameless repeat must
+  // not erase a name that was already known.
+  const name =
+    next.name !== undefined && next.name.length > 0 ? next.name : previous.name;
+  let rssi = previous.rssi;
+  if (next.rssi !== undefined && (rssi === undefined || next.rssi > rssi)) {
+    rssi = next.rssi;
+  }
+  return {id: next.id, name, rssi};
 }
 
 /** Strongest signal first; unknown RSSI last; id breaks ties. */
@@ -391,13 +403,30 @@ export async function startScan(handlers: ScanHandlers): Promise<void> {
     timer: setInterval(() => {
       try {
         for (const device of module.getDevices()) {
-          scan.found.set(device.id, mergeDevice(scan.found.get(device.id), device));
+          const merged = mergeDevice(scan.found.get(device.id), device);
+          const previous = scan.found.get(device.id);
+          // Only a new id or a changed signal counts as news; the platform
+          // repeats every advertisement it is still hearing.
+          if (
+            previous === undefined ||
+            previous.rssi !== merged.rssi ||
+            previous.name !== merged.name
+          ) {
+            scan.found.set(device.id, merged);
+            scan.dirty = true;
+          }
         }
       } catch (error) {
         handlers.onError(`扫描中断：${describeBleError(error, '未知原因')}`);
         void stopScan();
         return;
       }
+      if (!scan.dirty) {
+        // Nothing new: repainting here would re-render the row every tick for
+        // as long as the scan runs.
+        return;
+      }
+      scan.dirty = false;
       handlers.onDevices(deviceList(scan.found));
     }, SCAN_FLUSH_MS),
     dirty: false,
@@ -447,6 +476,7 @@ export async function connectDevice(
 
   try {
     await Promise.race([connected, timeout]);
+  watchConnection(deviceId);
   } catch (error) {
     if (timedOut) {
       // Observe the late settlement: success means the platform did connect,
@@ -469,6 +499,7 @@ export async function connectDevice(
 /** Disconnects one device; rejects when the platform will not close it. */
 export async function disconnectDevice(deviceId: string): Promise<void> {
   try {
+    connectedIds.delete(deviceId);
     requireClient().disconnect(deviceId);
   } catch (error) {
     throw new Error(
@@ -478,12 +509,18 @@ export async function disconnectDevice(deviceId: string): Promise<void> {
 }
 
 /**
- * Listens for disconnections the platform reports on its own (the peripheral
- * went away, or the system dropped the link). Returns an unsubscribe function.
+ * Listens for disconnections, whether the page asked for one or the link went
+ * away on its own. Returns an unsubscribe function.
+ *
+ * None of the three platform modules pushes a disconnect event: the app's own
+ * bridges keep the connection state and answer `isConnected`, so a link that
+ * dropped is noticed by polling the ids this wrapper connected. The legacy
+ * `DisconnectionEvent` is still honoured for a platform that emits it.
  */
 export function onDeviceDisconnected(
   listener: (deviceId: string) => void,
 ): () => void {
+  disconnectListeners.add(listener);
   const subscription = DeviceEventEmitter.addListener(
     'DisconnectionEvent',
     (payload: unknown) => {
@@ -496,5 +533,60 @@ export function onDeviceDisconnected(
       }
     },
   );
-  return () => subscription.remove();
+  const unsubscribe = (): void => {
+    disconnectListeners.delete(listener);
+    subscription.remove();
+    if (disconnectListeners.size === 0 && disconnectTimer !== null) {
+      clearInterval(disconnectTimer);
+      disconnectTimer = null;
+    }
+  };
+  if (connectedIds.size > 0) {
+    armDisconnectTimer();
+  }
+  return unsubscribe;
+}
+
+/** How often a live link is re-checked for one the platform dropped. */
+export const DISCONNECT_POLL_MS = 2000;
+
+/** Remembers a link so `onDeviceDisconnected` can notice when it dies. */
+function watchConnection(deviceId: string): void {
+  connectedIds.add(deviceId);
+  armDisconnectTimer();
+}
+
+/**
+ * Starts the liveness poll, but only while something is listening: an interval
+ * that outlives its listeners keeps Jest (and any host without a teardown)
+ * alive for nothing.
+ */
+function armDisconnectTimer(): void {
+  if (disconnectTimer !== null || disconnectListeners.size === 0) {
+    return;
+  }
+  disconnectTimer = setInterval(() => {
+    if (connectedIds.size === 0) {
+      if (disconnectTimer !== null) {
+        clearInterval(disconnectTimer);
+        disconnectTimer = null;
+      }
+      return;
+    }
+    for (const id of Array.from(connectedIds)) {
+      let alive = false;
+      try {
+        alive = requireClient().isConnected(id);
+      } catch {
+        alive = false;
+      }
+      if (alive) {
+        continue;
+      }
+      connectedIds.delete(id);
+      for (const listener of Array.from(disconnectListeners)) {
+        listener(id);
+      }
+    }
+  }, DISCONNECT_POLL_MS);
 }

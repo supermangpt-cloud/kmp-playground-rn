@@ -1,25 +1,36 @@
 /**
- * The `@react-native-oh-tpl/*` packages are HarmonyOS-only adaptations: they
- * ship an ArkTS/har side and no Android or iOS sources. RN 0.86's autolinking
- * scans `dependencies` and would otherwise emit `import com.reactnative…
- * .Package` entries into PackageList.java for modules that do not exist,
- * failing the Android build.
+ * Autolinking switchboard for the four capabilities that still use a
+ * third-party library (the platform bridges are the app's own only for
+ * Bluetooth, Wi-Fi, device info, network, permissions, album save and scan).
  *
- * Android and iOS builds read the upstream libraries through the same JS
- * wrappers; only HarmonyOS needs the adaptation, so opt these out of the other
- * two platforms here.
+ * `@react-native-oh-tpl/*` ships an ArkTS/har side and no Android or iOS
+ * sources, and the upstream libraries those sit on (async-storage, clipboard,
+ * image-picker, webview) do not produce new-architecture codegen output under
+ * RN 0.86, so their `android/build/generated/source/codegen/jni` trees are
+ * missing and the generated autolinking CMake cannot add them.
+ *
+ * Excluding them from the Android platform keeps the Android build linkable.
+ * The cost is stated plainly: on Android those four rows report
+ * 「模块没有注册」 instead of pretending to work. HarmonyOS and iOS are
+ * unaffected and keep autolinking them.
  */
-const harmonyOnly = [
+const androidUnavailable = [
   '@react-native-oh-tpl/async-storage',
   '@react-native-oh-tpl/clipboard',
-  '@react-native-oh-tpl/react-native-ble-plx',
   '@react-native-oh-tpl/react-native-image-picker',
   '@react-native-oh-tpl/react-native-webview',
+  '@react-native-async-storage/async-storage',
+  '@react-native-clipboard/clipboard',
+  'react-native-image-picker',
+  'react-native-webview',
 ];
 
 const dependencies = {};
-for (const name of harmonyOnly) {
-  dependencies[name] = {platforms: {android: null, ios: null}};
+for (const name of androidUnavailable) {
+  dependencies[name] = {platforms: {android: null}};
 }
 
-module.exports = {project: {android: {sourceDir: 'android'}}, dependencies};
+module.exports = {
+  project: {android: {sourceDir: 'android'}},
+  dependencies,
+};
