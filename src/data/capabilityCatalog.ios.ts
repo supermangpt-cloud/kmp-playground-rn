@@ -14,12 +14,6 @@ export type CapabilityStatusOverride = {
   limitation?: string;
 };
 
-export const WIFI_NOTE =
-  'iOS 不向普通应用提供附近 Wi-Fi 扫描或当前 SSID；本行在 iOS 上只说明这一平台限制，不能列出或连接 AP。';
-
-export const BLUETOOTH_NOTE =
-  '地址是平台提供的设备标识（Android 是设备 MAC，iOS 是系统分配的 UUID）；附近有一部分 BLE 广播不可连接，连接会等到超时。';
-
 export const CAPABILITY_STATUS_OVERRIDES: Readonly<
   Record<string, CapabilityStatusOverride>
 > = {

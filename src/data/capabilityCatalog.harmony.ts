@@ -12,12 +12,6 @@ export type CapabilityStatusOverride = {
   limitation?: string;
 };
 
-export const WIFI_NOTE =
-  '走 addCandidateConfig 候选网络路线；连接时系统会弹确认框，取消显示为「已取消」。当前 SSID 需要 GET_WIFI_INFO 权限，拿不到时会如实显示未知。';
-
-export const BLUETOOTH_NOTE =
-  '鸿蒙返回的地址是应用侧虚拟地址（没有 GET_BLUETOOTH_PEERS_MAC 时不是真实 MAC）；附近有一部分 BLE 广播不可连接，连接会等到超时。';
-
 export const CAPABILITY_STATUS_OVERRIDES: Readonly<
   Record<string, CapabilityStatusOverride>
 > = {

@@ -159,7 +159,7 @@ it('lists SSID, RSSI and encryption for every scanned AP', async () => {
   await press(tree, 'capability-wifi-scan');
 
   expect(host(tree, 'capability-wifi-count')[0].props.children).toBe(
-    '共 2 个 AP',
+    '2 个 AP',
   );
   expect(textUnder(host(tree, 'capability-wifi-ap-0')[0])).toContain(
     'KMP-Demo',
@@ -213,7 +213,7 @@ it('clears a cached list when the location switch is off', async () => {
   );
   expect(host(tree, 'capability-wifi-aps')).toHaveLength(0);
   expect(host(tree, 'capability-wifi-count')[0].props.children).toBe(
-    '尚未扫描',
+    '',
   );
 });
 

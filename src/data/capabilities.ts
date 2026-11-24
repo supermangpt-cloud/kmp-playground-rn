@@ -167,7 +167,7 @@ const BASE_CAPABILITIES: readonly Capability[] = [
     detail: '生成二维码 PNG 并写入系统相册',
     status: 'available',
     action: 'save-image',
-    actionLabel: '保存图片到相册',
+    actionLabel: '保存示例二维码',
   },
   {
     id: 'image-pick',

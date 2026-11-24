@@ -30,7 +30,6 @@ import {
   CapabilityAction,
   UNIMPLEMENTED_NOTE,
 } from '../data/capabilities';
-import {BLUETOOTH_NOTE, WIFI_NOTE} from '../data/capabilityCatalog';
 import {DIRECTORY_LABELS} from '../data/directories';
 import {getItem, removeItem, setItem} from '../native/asyncStorage';
 import {
@@ -256,11 +255,9 @@ function WifiBody({
     <View style={styles.wifi}>
       <View style={styles.wifiHeader}>
         <Text style={styles.wifiCount} testID="capability-wifi-count">
-          {scanning
-            ? '扫描中…'
-            : state.accessPoints.length > 0
-            ? `共 ${state.accessPoints.length} 个 AP`
-            : '尚未扫描'}
+          {state.accessPoints.length > 0
+            ? `${state.accessPoints.length} 个 AP`
+            : ''}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -290,9 +287,6 @@ function WifiBody({
         </Pressable>
       </View>
 
-      <Text style={styles.wifiNote} testID="capability-wifi-note">
-        {WIFI_NOTE}
-      </Text>
 
       {state.message === undefined ? null : (
         <Text
@@ -786,11 +780,7 @@ function BluetoothBody({
     <View style={styles.bluetooth}>
       <View style={styles.bluetoothHeader}>
         <Text style={styles.bluetoothCount} testID="capability-bluetooth-count">
-          {scanning
-            ? `扫描中… 已发现 ${state.devices.length} 台`
-            : state.devices.length === 0
-            ? '尚未扫描'
-            : `共 ${state.devices.length} 台`}
+          {state.devices.length > 0 ? `${state.devices.length} 台设备` : ''}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -808,9 +798,6 @@ function BluetoothBody({
         </Pressable>
       </View>
 
-      <Text style={styles.bluetoothNote} testID="capability-bluetooth-note">
-        {BLUETOOTH_NOTE}
-      </Text>
 
       {state.message === undefined ? null : (
         <Text
@@ -825,7 +812,7 @@ function BluetoothBody({
 
       {state.devices.length === 0 ? (
         <Text style={styles.bluetoothHint} testID="capability-bluetooth-hint">
-          {scanning ? '正在扫描…' : '点「扫描」列出附近的 BLE 广播'}
+          点「扫描」查找附近的 BLE 设备
         </Text>
       ) : (
         <ScrollView
