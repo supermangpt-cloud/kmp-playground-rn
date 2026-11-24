@@ -44,6 +44,10 @@ jobs:
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
       - name: assemble debug APK
         working-directory: android
+        env:
+          # The RN 0.86 settings plugin pulls org.gradle.toolchains:foojay-resolver,
+          # which needs a JVM 17+; the runner's default JDK is 11.
+          JAVA_HOME: /Users/liangyuanyuan-iri/Library/Java/JavaVirtualMachines/corretto-17.0.20/Contents/Home
         run: ./gradlew --no-daemon :app:assembleDebug
 
   ios:

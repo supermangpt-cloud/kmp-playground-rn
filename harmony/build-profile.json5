@@ -1,24 +1,9 @@
 {
   app: {
-    signingConfigs: [
-      {
-        name: 'default',
-        type: 'HarmonyOS',
-        material: {
-          certpath: '/Users/liangyuanyuan-iri/.ohos/config/default_harmony_xosyicH0VlL6vUtqRPhx70c8QvizcQSV2dExb4Tl6k=.cer',
-          keyAlias: 'debugKey',
-          keyPassword: '0000001adafae5e080678f2d946f902fa6ec870bd9c403d833c745ce7db8ec90796d8110792f789020b5',
-          profile: '/Users/liangyuanyuan-iri/.ohos/config/default_harmony_xosyicH0VlL6vUtqRPhx70c8QvizcQSV2dExb4Tl6k=.p7b',
-          signAlg: 'SHA256withECDSA',
-          storeFile: '/Users/liangyuanyuan-iri/.ohos/config/default_harmony_xosyicH0VlL6vUtqRPhx70c8QvizcQSV2dExb4Tl6k=.p12',
-          storePassword: '0000001adafae5e080678f2d946f902fa6ec870bd9c403d833c745ce7db8ec90796d8110792f789020b5',
-        },
-      },
-    ],
+    signingConfigs: [],
     products: [
       {
         name: 'default',
-        signingConfig: 'default',
         compatibleSdkVersion: '5.0.0(12)',
         targetSdkVersion: '6.0.0(20)',
         runtimeOS: 'HarmonyOS',
