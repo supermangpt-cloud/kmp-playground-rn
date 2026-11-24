@@ -140,19 +140,21 @@ beforeEach(() => {
   mockOnDisconnected.mockReturnValue(() => {});
 });
 
-it('offers 扫描 and states the two platform properties before scanning', async () => {
+it('offers 扫描 with the same hint as KMP and no count before scanning', async () => {
   const tree = await render();
 
   expect(
     textOf(tree.root.findByProps({testID: 'capability-status-bluetooth-le'})),
   ).toBe('可用');
   expect(labelOf(tree, 'capability-bluetooth-scan')).toBe('扫描');
-  const note = textOf(
-    tree.root.findByProps({testID: 'capability-bluetooth-note'}),
-  );
-  expect(note).toContain('虚拟地址');
-  expect(note).toContain('不是真实 MAC');
-  expect(note).toContain('不可连接');
+  // KMP's BluetoothLeRow shows the count only once devices exist and carries a
+  // single hint line, so the row has no placeholder and no address note.
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-bluetooth-count'})),
+  ).toBe('');
+  expect(
+    textOf(tree.root.findByProps({testID: 'capability-bluetooth-hint'})),
+  ).toBe('点「扫描」查找附近的 BLE 设备');
 
   renderer.act(() => {
     tree.unmount();
@@ -179,7 +181,7 @@ it('asks for ACCESS_BLUETOOTH, then lists devices with name, address and RSSI', 
 
   expect(
     textOf(tree.root.findByProps({testID: 'capability-bluetooth-count'})),
-  ).toBe('扫描中… 已发现 2 台');
+  ).toBe('2 台设备');
   const speakerRow = rowText(
     tree,
     'capability-bluetooth-device-42:3C:9A:F6:85:71',
@@ -236,7 +238,7 @@ it('mounts only a window of rows for a very large scan', async () => {
   expect(rowIds()).not.toContain('capability-bluetooth-device-DEV:0119');
   expect(
     textOf(tree.root.findByProps({testID: 'capability-bluetooth-count'})),
-  ).toBe('扫描中… 已发现 120 台');
+  ).toBe('120 台设备');
 
   // Scrolling to the end mounts the last rows instead of the first ones.
   const list = tree.root
