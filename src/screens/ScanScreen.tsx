@@ -32,7 +32,12 @@ type Props = {
  * its ArkTS page, and iOS has no scanner at all.
  */
 export function canDrawScannerInReactNative(): boolean {
-  return Platform.OS === 'android';
+  // Android and HarmonyOS both have the native `ScannerView` now; iOS has no
+  // scanner, so its 扫一扫 chip keeps reporting that the page is unavailable.
+  // React Native's own types stop at ios/android/windows/macos/web; RNOH adds
+  // 'harmony' at runtime, so the comparison goes through a plain string.
+  const os: string = Platform.OS;
+  return os === 'android' || os === 'harmony';
 }
 
 export default function ScanScreen({
@@ -43,8 +48,6 @@ export default function ScanScreen({
   // The camera keeps decoding every frame; the page must act on the first one
   // only, or a code held in front of the lens would fire dozens of times.
   const handled = useRef(false);
-  const [ready, setReady] = useState(false);
-
   const handleDecoded = useCallback(
     (event: {nativeEvent: {value: string}}) => {
       if (handled.current) {
@@ -87,7 +90,6 @@ export default function ScanScreen({
           facing="back"
           onDecoded={handleDecoded}
           onFailed={handleFailed}
-          onReady={() => setReady(true)}
           testID="scan-preview"
         />
         {/* The frame is RN's: the native side only supplies pixels. */}
@@ -96,11 +98,6 @@ export default function ScanScreen({
           <Text style={styles.hint} testID="scan-hint">
             将二维码放入框内，即可自动识别
           </Text>
-          {ready ? null : (
-            <Text style={styles.hint} testID="scan-warming">
-              正在启动相机…
-            </Text>
-          )}
         </View>
       </View>
 

@@ -249,3 +249,25 @@ Android 压入 `{kind: 'scan'}` 渲染上面这个 RN 页；鸿蒙仍然打开 A
 验证（JEF-AN00）：页面元素全部是 RN 节点（`scan-frame` 是 `ViewGroup`，
 `scan-hint` 是 `TextView`，`scan-preview` 是 `FrameLayout`），`dumpsys media.camera`
 显示 device 0 被本 App 持有，点取消后回到列表且相机释放（客户端数量归零）。
+
+## 3.3 鸿蒙：同一套 RN 界面，ArkUI 只给预览
+
+鸿蒙也改成 RN 画界面了，和安卓共用一个 `ScanScreen`。差别只在原生那一半：
+
+| 位置 | 内容 |
+| --- | --- |
+| `harmony/entry/src/main/ets/scanner/ScannerPreview.ets` | ArkUI 组件：`XComponent` SURFACE + Scan Kit `customScan`，只出画面和识码 |
+| `harmony/entry/src/main/ets/scanner/ScannerViewPackage.ets` | `RNOHPackage`，把组件名映射到这个 ArkUI 构建器 |
+| `harmony/.../cpp/AppPackage.h` | 注册 codegen 生成的 `ScannerViewComponentDescriptor` |
+| `npm run codegen:harmony` | 从 `src/native/specs` 生成 ETS/C++ 的组件骨架（hvigor 不会自己跑） |
+
+两个在 RN 树里踩到的坑：
+
+1. `onAreaChange` 在 FrameNode 托管的 ArkUI 节点上不触发，`previewWidth` 一直是 0，
+   `customScan.start` 因此永远不执行——改用 `onSizeChange`。
+2. `ComponentBuilderContext` / `RNOHPackage` 来自 `@rnoh/react-native-openharmony/ets`，
+   不是 `/ts`（`/ts` 只有 TurboModule 那套）。
+
+验证（2NP0224717051121）：页面元素全是 RN 节点（`scan-screen`/`scan-frame`/`scan-hint`），
+`hilog` 里 `ScanFrameworkCustomScan` 报告 `surface buffer info width: 1920` 与
+`checkDecode` 在跑，返回后出现 `~CustomScan`/`release`，相机被释放。

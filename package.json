@@ -12,7 +12,8 @@
     "build:demo-html": "node scripts/build-demo-html.js",
     "dev": "react-native bundle --platform harmony --dev true --entry-file index.js --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js --assets-dest harmony/entry/src/main/resources/rawfile/assets",
     "bundle-harmony": "react-native bundle --platform harmony --dev false --entry-file index.js --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js --assets-dest harmony/entry/src/main/resources/rawfile/assets",
-    "postinstall": "node scripts/patch-rn-webview-android.js"
+    "postinstall": "node scripts/patch-rn-webview-android.js",
+    "codegen:harmony": "react-native codegen-harmony --ets-output-path harmony/entry/src/main/ets/generated --cpp-output-path harmony/entry/src/main/cpp/generated"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.21.0",
@@ -36,6 +37,7 @@
     "@babel/preset-env": "^7.20.0",
     "@babel/runtime": "^7.20.0",
     "@react-native-community/cli": "^21.0.0",
+    "@react-native-oh/react-native-harmony-cli": "^0.86.1",
     "@react-native/eslint-config": "^0.72.2",
     "@react-native/jest-preset": "^0.86.3",
     "@react-native/metro-config": "0.86.3",
@@ -59,6 +61,13 @@
     "jsSrcsDir": "src/native/specs",
     "android": {
       "javaPackageName": "com.example.kmp.rn.scanner"
+    }
+  },
+  "harmony": {
+    "codegenConfig": {
+      "specPaths": [
+        "src/native/specs"
+      ]
     }
   }
 }

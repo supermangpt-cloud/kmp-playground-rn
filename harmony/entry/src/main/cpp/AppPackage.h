@@ -5,6 +5,7 @@
 
 #include "CapabilityProbeTurboModule.h"
 #include "BluetoothLeTurboModule.h"
+#include "generated/ScannerViewComponentDescriptor.h"
 #include "ImagePickerTurboModule.h"
 #include "ImageSaveTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
@@ -77,6 +78,17 @@ class AppPackage : public Package {
   std::unique_ptr<TurboModuleFactoryDelegate> createTurboModuleFactoryDelegate()
       override {
     return std::make_unique<AppTurboModuleFactoryDelegate>();
+  }
+
+  // The camera preview the 扫一扫 page draws with. Fabric needs a descriptor for
+  // every component the JS asks for; this one is generated from
+  // `src/native/specs/ScannerViewNativeComponent.ts` by `codegen-harmony`, and
+  // the ArkUI side is supplied by `ScannerViewPackage.ets`.
+  std::vector<facebook::react::ComponentDescriptorProvider>
+  createComponentDescriptorProviders() override {
+    return {
+        facebook::react::concreteComponentDescriptorProvider<
+            facebook::react::ScannerViewComponentDescriptor>()};
   }
 };
 
