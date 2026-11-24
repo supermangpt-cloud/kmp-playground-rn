@@ -22,7 +22,8 @@ public class CapabilityModulesPackage implements ReactPackage {
         new ImageSaveModule(reactContext),
         new WifiNetworkModule(reactContext),
         new BluetoothLeModule(reactContext),
-        new com.example.kmp.rn.scan.ScanKitModule(reactContext));
+        new com.example.kmp.rn.scan.ScanKitModule(reactContext),
+        new com.example.kmp.rn.video.VideoPlayerModule(reactContext));
   }
 
   @NonNull
@@ -31,6 +32,7 @@ public class CapabilityModulesPackage implements ReactPackage {
     // The camera preview the 扫一扫 page draws with; everything else on that
     // screen is a React Native view.
     return Arrays.asList(
-        new com.example.kmp.rn.scanner.ScannerViewManager(reactContext));
+        new com.example.kmp.rn.scanner.ScannerViewManager(reactContext),
+        new com.example.kmp.rn.video.VideoViewManager(reactContext));
   }
 }

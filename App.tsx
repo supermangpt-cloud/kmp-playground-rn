@@ -36,6 +36,7 @@ import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
 import QrCodeScreen from './src/screens/QrCodeScreen';
 import ScanScreen, {canDrawScannerInReactNative} from './src/screens/ScanScreen';
+import VideoScreen from './src/screens/VideoScreen';
 import WebPageScreen from './src/screens/WebPageScreen';
 import {useCart} from './src/state/cart';
 import {colors} from './src/ui/theme';
@@ -49,20 +50,30 @@ export type Screen =
   | {kind: 'qr'}
   | {kind: 'web'; url?: string}
   | {kind: 'capabilities'}
-  | {kind: 'scan'};
+  | {kind: 'scan'}
+  | {kind: 'video'};
 
 /** A scanned value that is not a web page, or a scan failure to explain. */
 type ScanNotice = {kind: 'result' | 'error'; text: string};
 
 const INITIAL_SCREEN: Screen = {kind: 'list'};
 
+/** Survives a root-view remount (picture-in-picture), not a process restart. */
+let restoredHistory: Screen[] = [INITIAL_SCREEN];
+
 function App(): React.JSX.Element {
   const cart = useCart();
   // A stack instead of one value so back can pop detail/cart without special
   // cases; the last entry is the visible page.
-  const [history, setHistory] = useState<Screen[]>([INITIAL_SCREEN]);
+  // The stack lives outside the component as well as inside it: entering the
+  // system picture-in-picture window destroys and recreates React Native's root
+  // view, and a fresh mount would otherwise drop the user back on the list.
+  const [history, setHistory] = useState<Screen[]>(() => [...restoredHistory]);
   const historyRef = useRef(history);
   historyRef.current = history;
+  useEffect(() => {
+    restoredHistory = history;
+  }, [history]);
   const screen = history[history.length - 1];
   // A non-URL scan result (or a scanner failure) is a dialog over the list.
   const [scanNotice, setScanNotice] = useState<ScanNotice | null>(null);
@@ -157,6 +168,7 @@ function App(): React.JSX.Element {
       onRemove={cart.remove}
       onOpenQr={() => push({kind: 'qr'})}
       onOpenScan={openScan}
+      onOpenVideo={() => push({kind: 'video'})}
       onOpenWebPage={() => push({kind: 'web'})}
       onOpenCapabilities={() => push({kind: 'capabilities'})}
     />
@@ -190,6 +202,8 @@ function App(): React.JSX.Element {
     content = <QrCodeScreen onBack={back} />;
   } else if (screen.kind === 'web') {
     content = <WebPageScreen onBack={back} url={screen.url} />;
+  } else if (screen.kind === 'video') {
+    content = <VideoScreen onBack={back} />;
   } else if (screen.kind === 'scan') {
     content = (
       <ScanScreen
