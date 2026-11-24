@@ -14,6 +14,7 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
 		24F43CA786D4DBF79299F305 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 006259973E7A906E8EB31905 /* UserNotifications.framework */; };
+		EC41D104E88A2F10940E2ED2 /* BluetoothLe.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6FB352854BA67B4CAF0442FE /* BluetoothLe.mm */; };
 		56C2D07BAFCBEDE045D5254A /* WifiNetwork.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */; };
 		684DA1E66B86EBB875876B9C /* CapabilityProbe.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */; };
 		69D7297169CDF17E9AFC8AAD /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D628D35B0C5A5D55D82BBF75 /* CoreLocation.framework */; };
@@ -52,6 +53,8 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = KmpPlaygroundRn/Info.plist; sourceTree = "<group>"; };
 		13B07FB71A68108700A75B9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = KmpPlaygroundRn/main.m; sourceTree = "<group>"; };
 		19F6CBCC0A4E27FBF8BF4A61 /* libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EFEF90E72E972CAC93E10A76 /* BluetoothLe.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = BluetoothLe.h; path = KmpPlaygroundRn/BluetoothLe.h; sourceTree = "<group>"; };
+		6FB352854BA67B4CAF0442FE /* BluetoothLe.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = BluetoothLe.mm; path = KmpPlaygroundRn/BluetoothLe.mm; sourceTree = "<group>"; };
 		2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = WifiNetwork.mm; path = KmpPlaygroundRn/WifiNetwork.mm; sourceTree = "<group>"; };
 		2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = CapabilityProbe.mm; path = KmpPlaygroundRn/CapabilityProbe.mm; sourceTree = "<group>"; };
 		33ADA2C5D2C3E2AC39F26992 /* ImageSave.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = ImageSave.h; path = KmpPlaygroundRn/ImageSave.h; sourceTree = "<group>"; };
@@ -136,6 +139,8 @@
 				037F776B8633A0BF8F84C86B /* ImageSave.mm */,
 				DB12236E270E111713861508 /* WifiNetwork.h */,
 				2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */,
+				EFEF90E72E972CAC93E10A76 /* BluetoothLe.h */,
+				6FB352854BA67B4CAF0442FE /* BluetoothLe.mm */,
 			);
 			name = KmpPlaygroundRn;
 			sourceTree = "<group>";
@@ -470,6 +475,7 @@
 				684DA1E66B86EBB875876B9C /* CapabilityProbe.mm in Sources */,
 				071A02EB091F03C2CE06A9BC /* ImageSave.mm in Sources */,
 				56C2D07BAFCBEDE045D5254A /* WifiNetwork.mm in Sources */,
+				EC41D104E88A2F10940E2ED2 /* BluetoothLe.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

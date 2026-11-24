@@ -20,7 +20,8 @@ public class CapabilityModulesPackage implements ReactPackage {
     return Arrays.asList(
         new CapabilityProbeModule(reactContext),
         new ImageSaveModule(reactContext),
-        new WifiNetworkModule(reactContext));
+        new WifiNetworkModule(reactContext),
+        new BluetoothLeModule(reactContext));
   }
 
   @NonNull

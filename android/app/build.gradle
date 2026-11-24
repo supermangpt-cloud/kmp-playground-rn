@@ -6,6 +6,12 @@ apply plugin: "com.facebook.react"
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
+    /* Autolinking */
+    // Reads build/generated/autolinking/autolinking.json (written by the
+    // settings plugin) and adds one `implementation project(...)` per library.
+    // Without it the PackageList names classes the app never links against.
+    autolinkLibrariesWithApp()
+
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '..'
     // root = file("../")
