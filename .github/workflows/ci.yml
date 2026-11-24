@@ -94,7 +94,7 @@ jobs:
         # Must run before assembleHap. bundle.harmony.js is a gitignored build
         # product; without it the installed HAP only shows the red screen
         # "None of the provided JSBundlePath(s) ... Is Metro server running?".
-        run: npm run dev
+        run: npm run dev -- --reset-cache
       - name: install the RNOH har
         working-directory: harmony
         run: ohpm install --all
