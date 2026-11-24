@@ -303,3 +303,18 @@ before/after 是同一台真机、同一页面（商品列表）和同一主题�
 - 远程页面被拒绝导航后不再重挂：页面区域会停在 ArkWeb 的空白错误页（见上节），
   底部提示仍会说明被拦截的 URL。这是适配包 `onLoadIntercept` 的实现限制，不是重挂
   能解决的问题。
+
+## Android：模块未链接时的降级
+
+Android 目前把 `@react-native-oh-tpl/react-native-webview` 排除在 autolinking
+之外（见 `react-native.config.js`），而它的 JS 会在模块体里
+`TurboModuleRegistry.getEnforcing('RNCWebView')`，于是：
+
+- 顶层 `import` 会让整个 Bundle 在启动时报
+  `Invariant Violation: 'RNCWebView' could not be found`；
+- `import * as pkg` 再取 `pkg.WebView` 也不行——Babel 的通配符互操作会读到
+  这个包的 getter，同样把异常抛出来。
+
+所以 `WebPageScreen` 用 `try/catch` 里的 `require` 取组件；拿不到就渲染一块
+「这个平台没有 WebView 模块」的说明（带地址），而不是红屏。H5 演示与扫码打开
+的 URL 都走这条降级路径。

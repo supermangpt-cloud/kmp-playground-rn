@@ -14,10 +14,34 @@
 import React, {useCallback, useRef, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
-import {WebView} from '@react-native-oh-tpl/react-native-webview';
 import {colors} from '../ui/theme';
 import {isNavigableUrl} from '../ui/webUrl';
 import {demoHtmlWithInitialCount} from '../web/demoHtml';
+
+/**
+ * The adapted package resolves to `undefined` on a platform where its native
+ * side is not linked (Android, while the package is excluded from
+ * autolinking). Reading `.WebView` off that is what produced
+ * 「Cannot read property 'WebView' of undefined」 and a red screen, so the
+ * component is looked up once, defensively, and the page renders an
+ * explanation instead of the view when it is missing.
+ */
+const WebView = loadWebView();
+
+function loadWebView(): React.ComponentType<Record<string, unknown>> | undefined {
+  try {
+    // `require` inside try/catch, not a top-level import: the adapted package
+    // resolves its native module while its own module body runs, so on a
+    // platform where that module is not linked it throws
+    // `TurboModuleRegistry.getEnforcing(...): 'RNCWebView' could not be found`
+    // before anything here can check for it.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const loaded = require('@react-native-oh-tpl/react-native-webview');
+    return loaded?.WebView;
+  } catch {
+    return undefined;
+  }
+}
 
 type Props = {
   onBack: () => void;
@@ -166,6 +190,17 @@ export default function WebPageScreen({onBack, url}: Props): React.JSX.Element {
         </View>
       </View>
 
+      {WebView === undefined ? (
+        <View style={styles.unavailable} testID="web-unavailable">
+          <Text style={styles.unavailableTitle}>这个平台没有 WebView 模块</Text>
+          <Text style={styles.unavailableBody}>
+            react-native-webview 的原生部分没有链接进本平台的构建（Android
+            目前把它排除在 autolinking 之外），所以 H5 页面无法渲染。
+            {'\n\n'}
+            地址：{scannedUrl ?? 'src/web/demo.html · 本地 HTML'}
+          </Text>
+        </View>
+      ) : (
       <WebView
         key={webViewInstance}
         source={
@@ -181,10 +216,11 @@ export default function WebPageScreen({onBack, url}: Props): React.JSX.Element {
         onMessage={handleMessage}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onLoadEnd={handleLoadEnd}
-        onError={event =>
+        onError={(event: {nativeEvent: {description?: string}}) =>
           setLoadError(event.nativeEvent.description ?? '页面加载失败')
         }
       />
+      )}
 
       <View style={styles.statusBar}>
         <Text style={styles.statusLabel} testID="web-last-message">
@@ -246,6 +282,23 @@ const styles = StyleSheet.create({
   webView: {
     flex: 1,
     backgroundColor: colors.surface,
+  },
+  unavailable: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    backgroundColor: colors.surface,
+  },
+  unavailableTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  unavailableBody: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.textSecondary,
   },
   statusBar: {
     paddingHorizontal: 16,
