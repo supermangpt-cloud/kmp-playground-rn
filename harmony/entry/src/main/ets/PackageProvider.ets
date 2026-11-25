@@ -9,6 +9,7 @@ import { ImageSavePackage } from './image/ImageSavePackage';
 import { WifiNetworkPackage } from './wifi/WifiNetworkPackage';
 import { BluetoothLePackage } from './bluetooth/BluetoothLePackage';
 import { ScannerViewPackage } from './scanner/ScannerViewPackage';
+import { VideoViewPackage } from './video/VideoViewPackage';
 
 /**
  * Third-party RN packages linked into the app. The list contains the
@@ -53,5 +54,6 @@ export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
     new WifiNetworkPackage(ctx),
     new BluetoothLePackage(ctx),
     new ScannerViewPackage(ctx),
+    new VideoViewPackage(ctx),
   ];
 }

@@ -20,6 +20,10 @@ export type VideoState = {
 };
 
 type NativeVideoPlayer = {
+  /** HarmonyOS opens the media itself; Android takes it as a prop. */
+  open?: (playerId: string, url: string) => void;
+  setPaused?: (playerId: string, paused: boolean) => void;
+  close?: (playerId: string) => void;
   getState: (playerId: string) => Promise<VideoState | null>;
   seekTo: (playerId: string, positionMs: number) => void;
   isPipSupported: () => Promise<boolean>;
@@ -49,6 +53,29 @@ export function seekVideo(playerId: string, positionMs: number): void {
   const native = player();
   if (native !== null && typeof native.seekTo === 'function') {
     native.seekTo(playerId, positionMs);
+  }
+}
+
+/** Tells the platform which media this player id should show. */
+export function openVideo(playerId: string, url: string): void {
+  const native = player();
+  if (native !== null && typeof native.open === 'function') {
+    native.open(playerId, url);
+  }
+}
+
+export function setPausedVideo(playerId: string, paused: boolean): void {
+  const native = player();
+  if (native !== null && typeof native.setPaused === 'function') {
+    native.setPaused(playerId, paused);
+  }
+}
+
+/** The page is gone: let the platform release the media. */
+export function closeVideo(playerId: string): void {
+  const native = player();
+  if (native !== null && typeof native.close === 'function') {
+    native.close(playerId);
   }
 }
 
