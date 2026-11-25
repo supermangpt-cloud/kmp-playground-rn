@@ -19,13 +19,16 @@ import {
 
 import VideoView from '../native/specs/VideoViewNativeComponent';
 import {
+  closeVideo,
   enterPip,
   formatClock,
   getVideoState,
   isInPip,
   isPipSupported,
+  openVideo,
   seekVideo,
   setFullscreen,
+  setPausedVideo,
 } from '../native/video';
 import {colors} from '../ui/theme';
 
@@ -54,6 +57,16 @@ export default function VideoScreen({onBack, url}: Props): React.JSX.Element {
   const [fullscreen, setFullscreenFlag] = useState(false);
   const [pipSupported, setPipSupported] = useState(false);
   const [inPip, setInPip] = useState(false);
+
+  // Hand the media to the platform once, and take it back when the page leaves.
+  useEffect(() => {
+    openVideo(playerId, source);
+    return () => closeVideo(playerId);
+  }, [playerId, source]);
+
+  useEffect(() => {
+    setPausedVideo(playerId, paused);
+  }, [playerId, paused]);
 
   useEffect(() => {
     let cancelled = false;

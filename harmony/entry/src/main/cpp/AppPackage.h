@@ -5,8 +5,11 @@
 
 #include "CapabilityProbeTurboModule.h"
 #include "BluetoothLeTurboModule.h"
+#include "VideoPlayerTurboModule.h"
 #include "generated/ScannerViewComponentDescriptor.h"
 #include "generated/ScannerViewJSIBinder.h"
+#include "generated/VideoViewComponentDescriptor.h"
+#include "generated/VideoViewJSIBinder.h"
 #include "ImagePickerTurboModule.h"
 #include "ImageSaveTurboModule.h"
 #include "RNOH/ArkTSTurboModule.h"
@@ -68,6 +71,11 @@ class AppTurboModuleFactoryDelegate : public TurboModuleFactoryDelegate {
     if (name == "WifiNetwork") {
       return std::make_shared<WifiNetworkTurboModule>(ctx, name);
     }
+    // The video page's player: the media lives in the ArkTS VideoSession so a
+    // page rebuild never reloads it, and this is how JS reaches it.
+    if (name == "VideoPlayer") {
+      return std::make_shared<VideoPlayerTurboModule>(ctx, name);
+    }
     return nullptr;
   }
 };
@@ -89,14 +97,17 @@ class AppPackage : public Package {
   // 「Couldn't find ComponentJSIBinder for: ScannerView」, which also means its
   // props and events are dropped.
   ComponentJSIBinderByString createComponentJSIBinderByName() override {
-    return {{"ScannerView", std::make_shared<ScannerViewJSIBinder>()}};
+    return {{"ScannerView", std::make_shared<ScannerViewJSIBinder>()},
+            {"VideoView", std::make_shared<VideoViewJSIBinder>()}};
   }
 
   std::vector<facebook::react::ComponentDescriptorProvider>
   createComponentDescriptorProviders() override {
     return {
         facebook::react::concreteComponentDescriptorProvider<
-            facebook::react::ScannerViewComponentDescriptor>()};
+            facebook::react::ScannerViewComponentDescriptor>(),
+        facebook::react::concreteComponentDescriptorProvider<
+            facebook::react::VideoViewComponentDescriptor>()};
   }
 };
 
