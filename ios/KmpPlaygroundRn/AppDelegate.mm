@@ -73,15 +73,16 @@
   // for now: `startReactNativeWithModuleName:` installs the root controller
   // asynchronously, so reading `window.rootViewController` here returned nil and
   // the window stayed on the (white) splash forever.
-  // Build the factory *with this app delegate* as its delegate. Going through
-  // `appDelegate.reactNativeFactory` used React Native's default delegate, whose
-  // `bundleURL` returns nil — the red box said
-  // 「No script URL provided. unsanitizedScriptURLString = (null)」.
-  RCTReactNativeFactory *factory = [[RCTReactNativeFactory alloc] initWithDelegate:appDelegate];
+  // Use the factory the app delegate already owns. Building a second one (with
+  // `initWithDelegate:`) made `bundleURL` reachable but left two factories in
+  // play: the app showed 「Loading from Metro...」 and Metro never received a
+  // request.
+  RCTReactNativeFactory *factory = appDelegate.reactNativeFactory;
   @try {
-    NSLog(@"[KmpDebug] factory delegate = %@", NSStringFromClass([[factory valueForKey:@"delegate"] class]));
+    NSLog(@"[KmpDebug] factory delegate = %@",
+          NSStringFromClass([[factory valueForKey:@"delegate"] class]));
   } @catch (NSException *e) {
-    NSLog(@"[KmpDebug] factory delegate KVC failed: %@", e.reason);
+    NSLog(@"[KmpDebug] delegate KVC failed: %@", e.reason);
   }
   [factory startReactNativeWithModuleName:appDelegate.moduleName ?: @"KmpPlaygroundRn"
                                  inWindow:window];
