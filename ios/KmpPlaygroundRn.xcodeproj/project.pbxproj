@@ -14,7 +14,6 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
 		24F43CA786D4DBF79299F305 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 006259973E7A906E8EB31905 /* UserNotifications.framework */; };
-		EC41D104E88A2F10940E2ED2 /* BluetoothLe.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6FB352854BA67B4CAF0442FE /* BluetoothLe.mm */; };
 		56C2D07BAFCBEDE045D5254A /* WifiNetwork.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */; };
 		684DA1E66B86EBB875876B9C /* CapabilityProbe.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */; };
 		69D7297169CDF17E9AFC8AAD /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D628D35B0C5A5D55D82BBF75 /* CoreLocation.framework */; };
@@ -27,6 +26,8 @@
 		A1B2C3D42E00000100000001 /* SplashViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42E00000100000003 /* SplashViewController.m */; };
 		BD9C105DBDDFD3EB4F6BB2CC /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C043BC35F0A9D238AA3124A4 /* CoreBluetooth.framework */; };
 		C6D92921D2FDFF2AADFA2397 /* Photos.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 682B21625DD7623A35638C6A /* Photos.framework */; };
+		E091DBFF501678711D650C7A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8B9B33797BDCE686F2445AFA /* PrivacyInfo.xcprivacy */; };
+		EC41D104E88A2F10940E2ED2 /* BluetoothLe.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6FB352854BA67B4CAF0442FE /* BluetoothLe.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,8 +54,6 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = KmpPlaygroundRn/Info.plist; sourceTree = "<group>"; };
 		13B07FB71A68108700A75B9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = KmpPlaygroundRn/main.m; sourceTree = "<group>"; };
 		19F6CBCC0A4E27FBF8BF4A61 /* libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EFEF90E72E972CAC93E10A76 /* BluetoothLe.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = BluetoothLe.h; path = KmpPlaygroundRn/BluetoothLe.h; sourceTree = "<group>"; };
-		6FB352854BA67B4CAF0442FE /* BluetoothLe.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = BluetoothLe.mm; path = KmpPlaygroundRn/BluetoothLe.mm; sourceTree = "<group>"; };
 		2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = WifiNetwork.mm; path = KmpPlaygroundRn/WifiNetwork.mm; sourceTree = "<group>"; };
 		2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = CapabilityProbe.mm; path = KmpPlaygroundRn/CapabilityProbe.mm; sourceTree = "<group>"; };
 		33ADA2C5D2C3E2AC39F26992 /* ImageSave.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = ImageSave.h; path = KmpPlaygroundRn/ImageSave.h; sourceTree = "<group>"; };
@@ -65,15 +64,18 @@
 		60E60B471BB105C927D3841F /* CapabilityProbe.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = CapabilityProbe.h; path = KmpPlaygroundRn/CapabilityProbe.h; sourceTree = "<group>"; };
 		682B21625DD7623A35638C6A /* Photos.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Photos.framework; path = System/Library/Frameworks/Photos.framework; sourceTree = SDKROOT; };
 		6B5F6B2C13D7E31C43C9EF16 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
+		6FB352854BA67B4CAF0442FE /* BluetoothLe.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = BluetoothLe.mm; path = KmpPlaygroundRn/BluetoothLe.mm; sourceTree = "<group>"; };
 		724445485693F45CED317094 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = KmpPlaygroundRn/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		89C6BE57DB24E9ADA2F236DE /* Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.release.xcconfig"; path = "Target Support Files/Pods-KmpPlaygroundRn-KmpPlaygroundRnTests/Pods-KmpPlaygroundRn-KmpPlaygroundRnTests.release.xcconfig"; sourceTree = "<group>"; };
+		8B9B33797BDCE686F2445AFA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = KmpPlaygroundRn/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A1B2C3D42E00000100000002 /* SplashViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SplashViewController.h; path = KmpPlaygroundRn/SplashViewController.h; sourceTree = "<group>"; };
 		A1B2C3D42E00000100000003 /* SplashViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = SplashViewController.m; path = KmpPlaygroundRn/SplashViewController.m; sourceTree = "<group>"; };
 		C043BC35F0A9D238AA3124A4 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
 		D628D35B0C5A5D55D82BBF75 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
 		DB12236E270E111713861508 /* WifiNetwork.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = WifiNetwork.h; path = KmpPlaygroundRn/WifiNetwork.h; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EFEF90E72E972CAC93E10A76 /* BluetoothLe.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = BluetoothLe.h; path = KmpPlaygroundRn/BluetoothLe.h; sourceTree = "<group>"; };
 		FACD62BE79886AB5160B2CA6 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -141,6 +143,7 @@
 				2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */,
 				EFEF90E72E972CAC93E10A76 /* BluetoothLe.h */,
 				6FB352854BA67B4CAF0442FE /* BluetoothLe.mm */,
+				8B9B33797BDCE686F2445AFA /* PrivacyInfo.xcprivacy */,
 			);
 			name = KmpPlaygroundRn;
 			sourceTree = "<group>";
@@ -301,6 +304,7 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				E091DBFF501678711D650C7A /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -500,7 +504,7 @@
 					"$(inherited)",
 				);
 				INFOPLIST_FILE = KmpPlaygroundRnTests/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -524,7 +528,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COPY_PHASE_STRIP = NO;
 				INFOPLIST_FILE = KmpPlaygroundRnTests/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -598,7 +602,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -643,7 +647,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
@@ -655,12 +659,16 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_CFLAGS = "$(inherited)";
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
 					"-DFOLLY_MOBILE=1",
 					"-DFOLLY_USE_LIBCPP=1",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -669,8 +677,12 @@
 					" ",
 					"-Wl -ld_classic ",
 				);
+				PODFILE_DIR = "$(SRCROOT)";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				USE_HERMES = true;
 			};
 			name = Debug;
 		};
@@ -679,7 +691,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -720,7 +732,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
@@ -731,12 +743,16 @@
 					"\"$(inherited)\"",
 				);
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_CFLAGS = "$(inherited)";
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
 					"-DFOLLY_MOBILE=1",
 					"-DFOLLY_USE_LIBCPP=1",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -745,8 +761,11 @@
 					" ",
 					"-Wl -ld_classic ",
 				);
+				PODFILE_DIR = "$(SRCROOT)";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;

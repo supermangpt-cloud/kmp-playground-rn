@@ -1,4 +1,9 @@
-# Resolve react_native_pods.rb with node to allow for hoisting
+# The Podfile for React Native 0.86.
+#
+# The previous one was the 0.72 template: it configured Flipper and passed
+# `get_default_flags()` into `use_react_native!`. Flipper is gone from React
+# Native (0.74 removed it) and the flags hash no longer exists, so that file
+# could not even resolve when `pod install` ran on this toolchain.
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(
     "react-native/scripts/react_native_pods.rb",
@@ -7,17 +12,6 @@ require Pod::Executable.execute_command('node', ['-p',
 
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
-
-# If you are using a `react-native-flipper` your iOS build will fail when `NO_FLIPPER=1` is set.
-# because `react-native-flipper` depends on (FlipperKit,...) that will be excluded
-#
-# To fix this you can also exclude `react-native-flipper` using a `react-native.config.js`
-# ```js
-# module.exports = {
-#   dependencies: {
-#     ...(process.env.NO_FLIPPER ? { 'react-native-flipper': { platforms: { ios: null } } } : {}),
-# ```
-flipper_config = ENV['NO_FLIPPER'] == "1" ? FlipperConfiguration.disabled : FlipperConfiguration.enabled
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
@@ -28,35 +22,51 @@ end
 target 'KmpPlaygroundRn' do
   config = use_native_modules!
 
-  # Flags change depending on the env values.
-  flags = get_default_flags()
-
   use_react_native!(
     :path => config[:reactNativePath],
-    # Hermes is now enabled by default. Disable by setting this flag to false.
-    :hermes_enabled => flags[:hermes_enabled],
-    :fabric_enabled => flags[:fabric_enabled],
-    # Enables Flipper.
-    #
-    # Note that if you have use_frameworks! enabled, Flipper will not work and
-    # you should disable the next line.
-    :flipper_configuration => flipper_config,
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
   target 'KmpPlaygroundRnTests' do
     inherit! :complete
-    # Pods for testing
   end
 
   post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
     react_native_post_install(
       installer,
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
-    __apply_Xcode_12_5_M1_post_install_workaround(installer)
+
+    # React Native 0.86 ships prebuilt folly headers without `folly/coro/`, while
+    # `folly/Expected.h` includes `folly/coro/Coroutine.h` whenever coroutines are
+    # available — with C++20 that is always, so every target that touches folly
+    # died with 「'folly/coro/Coroutine.h' file not found」. folly's own switch turns
+    # the feature off; defining it in the header itself covers pods and the app
+    # target alike, without overriding anyone's compiler flags (an earlier attempt
+    # set GCC_PREPROCESSOR_DEFINITIONS and silently dropped DEBUG=1).
+    # Xcode 27 refuses pods that still declare an old deployment target; the
+    # podspecs in these libraries go back to iOS 11/12.
+    installer.pods_project.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+    end
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+      end
+    end
+
+    # The same header exists four times under Pods (public/private header maps
+    # plus the xcframework copy the compiler actually reads), so patch them all.
+    folly_headers = Dir.glob(File.join(installer.sandbox.root.to_s, '**/folly/Portability.h'))
+    Pod::UI.puts "Patching #{folly_headers.size} folly header(s) for FOLLY_CFG_NO_COROUTINES"
+    folly_headers.each do |portability|
+      header = File.read(portability)
+      # The guard line `#if defined(FOLLY_CFG_NO_COROUTINES)` already contains the
+      # name, so look for the definition itself or every file is skipped.
+      next if header.include?('#define FOLLY_CFG_NO_COROUTINES 1')
+      File.write(portability, "#define FOLLY_CFG_NO_COROUTINES 1\n" + header)
+    end
   end
 end

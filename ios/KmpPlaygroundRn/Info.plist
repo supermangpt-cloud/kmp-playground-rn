@@ -55,6 +55,28 @@
 	<string>「保存图片到相册」只在你点「保存」时申请仅添加照片的权限，用于把生成的二维码 PNG 写入相册。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>平台能力页的「相册」权限行只在你点「申请」时申请相册读取权限；「从相册选图」使用系统照片选择器，本身不需要这项权限。</string>
+	<key>RCTNewArchEnabled</key>
+	<true/>
+	<!-- iOS 26+ crashes on launch when an app links the new SDK without
+	     adopting the UIScene lifecycle. React Native 0.86's template ships this
+	     manifest and a SceneDelegate; this project still had the 0.72 layout. -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
