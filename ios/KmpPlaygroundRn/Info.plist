@@ -57,9 +57,6 @@
 	<string>平台能力页的「相册」权限行只在你点「申请」时申请相册读取权限；「从相册选图」使用系统照片选择器，本身不需要这项权限。</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
-	<!-- iOS 26+ crashes on launch when an app links the new SDK without
-	     adopting the UIScene lifecycle. React Native 0.86's template ships this
-	     manifest and a SceneDelegate; this project still had the 0.72 layout. -->
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -77,6 +74,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

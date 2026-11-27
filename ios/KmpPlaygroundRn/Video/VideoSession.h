@@ -1,4 +1,6 @@
 #import <AVFoundation/AVFoundation.h>
+
+#import <AVKit/AVKit.h>
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -31,6 +33,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)detachLayer:(AVPlayerLayer *)layer;
 
 - (void)closePlayerId:(NSString *)playerId;
+
+/** Picture-in-picture: supported by the device and currently on screen. */
+- (BOOL)isPipSupported;
+- (BOOL)isInPip;
+- (void)startPip;
+
+/** Whether the presented fullscreen player is up; the page reads it in getState. */
+@property (nonatomic, assign) BOOL isFullscreen;
+- (void)stopPip;
 
 @end
 

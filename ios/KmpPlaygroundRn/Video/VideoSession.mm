@@ -1,6 +1,8 @@
 #import "VideoSession.h"
 
-@interface VideoSession ()
+#import <AVKit/AVKit.h>
+
+@interface VideoSession () <AVPictureInPictureControllerDelegate>
 @property (nonatomic, strong, nullable) AVPlayer *player;
 @property (nonatomic, strong, nullable) AVPlayerItem *item;
 @property (nonatomic, copy) NSString *playerId;
@@ -8,6 +10,8 @@
 @property (nonatomic, strong, nullable) NSString *errorMessage;
 @property (nonatomic, assign) BOOL wantPlaying;
 @property (nonatomic, strong) NSMutableArray<AVPlayerLayer *> *layers;
+@property (nonatomic, strong, nullable) AVPictureInPictureController *pipController;
+@property (nonatomic, assign) BOOL inPip;
 @end
 
 @implementation VideoSession
@@ -115,6 +119,7 @@
       @"ended" : @NO,
       @"buffering" : @NO,
       @"error" : [NSNull null],
+      @"fullscreen" : @(self.isFullscreen),
     };
   }
   CMTime position = player.currentTime;
@@ -132,6 +137,7 @@
     @"ended" : @(ended),
     @"buffering" : @(buffering),
     @"error" : self.errorMessage == nil ? (id)[NSNull null] : (id)self.errorMessage,
+    @"fullscreen" : @(self.isFullscreen),
   };
 }
 
@@ -168,6 +174,60 @@
   }
   [self.layers addObject:layer];
   layer.player = self.player;
+  [self ensurePipControllerForLayer:layer];
+}
+
+- (BOOL)isPipSupported
+{
+  return [AVPictureInPictureController isPictureInPictureSupported];
+}
+
+- (BOOL)isInPip
+{
+  return self.inPip;
+}
+
+- (void)startPip
+{
+  AVPictureInPictureController *controller = self.pipController;
+  if (controller == nil) {
+    for (AVPlayerLayer *layer in self.layers) {
+      if (layer.player != nil) {
+        [self ensurePipControllerForLayer:layer];
+        controller = self.pipController;
+        break;
+      }
+    }
+  }
+  if (controller != nil && !controller.isPictureInPictureActive) {
+    [controller startPictureInPicture];
+  }
+}
+
+- (void)stopPip
+{
+  if (self.pipController.isPictureInPictureActive) {
+    [self.pipController stopPictureInPicture];
+  }
+}
+
+- (void)ensurePipControllerForLayer:(AVPlayerLayer *)layer
+{
+  if (self.pipController != nil || layer.player == nil || ![self isPipSupported]) {
+    return;
+  }
+  self.pipController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
+  self.pipController.delegate = self;
+}
+
+- (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)controller
+{
+  self.inPip = YES;
+}
+
+- (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)controller
+{
+  self.inPip = NO;
 }
 
 - (void)detachLayer:(AVPlayerLayer *)layer

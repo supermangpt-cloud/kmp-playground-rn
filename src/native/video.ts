@@ -17,6 +17,11 @@ export type VideoState = {
   ended: boolean;
   buffering: boolean;
   error: string | null;
+  /**
+   * Present where fullscreen is a native screen of its own (iOS), so the page can
+   * resync its button after the system closes it. Absent elsewhere.
+   */
+  fullscreen?: boolean;
 };
 
 type NativeVideoPlayer = {

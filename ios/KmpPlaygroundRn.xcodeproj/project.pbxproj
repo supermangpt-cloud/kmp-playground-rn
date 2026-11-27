@@ -11,6 +11,8 @@
 		071A02EB091F03C2CE06A9BC /* ImageSave.mm in Sources */ = {isa = PBXBuildFile; fileRef = 037F776B8633A0BF8F84C86B /* ImageSave.mm */; };
 		0C80B921A6F3F58F76C31292 /* libPods-KmpPlaygroundRn.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-KmpPlaygroundRn.a */; };
 		13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB01A68108700A75B9A /* AppDelegate.mm */; };
+		AVK1TFRAMEBU1LD00000000001 /* AVKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AVK1TFRAMEW0RK0000000001 /* AVKit.framework */; };
+		A00000000000000000000400 /* FullscreenVideoViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000300 /* FullscreenVideoViewController.mm */; };
 		ABC000000000000000000200 /* VideoSession.mm in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000100 /* VideoSession.mm */; };
 		ABC000000000000000000202 /* VideoPlayer.mm in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000102 /* VideoPlayer.mm */; };
 		ABC000000000000000000204 /* VideoViewComponentView.mm in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000104 /* VideoViewComponentView.mm */; };
@@ -59,6 +61,9 @@
 		19F6CBCC0A4E27FBF8BF4A61 /* libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = WifiNetwork.mm; path = KmpPlaygroundRn/WifiNetwork.mm; sourceTree = "<group>"; };
 		2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = CapabilityProbe.mm; path = KmpPlaygroundRn/CapabilityProbe.mm; sourceTree = "<group>"; };
+		AVK1TFRAMEW0RK0000000001 /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = System/Library/Frameworks/AVKit.framework; sourceTree = SDKROOT; };
+		A00000000000000000000300 /* FullscreenVideoViewController.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = FullscreenVideoViewController.mm; path = KmpPlaygroundRn/Video/FullscreenVideoViewController.mm; sourceTree = "<group>"; };
+		A00000000000000000000301 /* FullscreenVideoViewController.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = FullscreenVideoViewController.h; path = KmpPlaygroundRn/Video/FullscreenVideoViewController.h; sourceTree = "<group>"; };
 		ABC000000000000000000100 /* VideoSession.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = VideoSession.mm; path = KmpPlaygroundRn/Video/VideoSession.mm; sourceTree = "<group>"; };
 		ABC000000000000000000101 /* VideoSession.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = VideoSession.h; path = KmpPlaygroundRn/Video/VideoSession.h; sourceTree = "<group>"; };
 		ABC000000000000000000102 /* VideoPlayer.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = VideoPlayer.mm; path = KmpPlaygroundRn/Video/VideoPlayer.mm; sourceTree = "<group>"; };
@@ -103,6 +108,7 @@
 			files = (
 				0C80B921A6F3F58F76C31292 /* libPods-KmpPlaygroundRn.a in Frameworks */,
 				C6D92921D2FDFF2AADFA2397 /* Photos.framework in Frameworks */,
+				AVK1TFRAMEBU1LD00000000001 /* AVKit.framework in Frameworks */,
 				69D7297169CDF17E9AFC8AAD /* CoreLocation.framework in Frameworks */,
 				8B97049EA0F357D2E1E552C8 /* Contacts.framework in Frameworks */,
 				7165D1ABCA6EF16B7CBC3057 /* EventKit.framework in Frameworks */,
@@ -146,6 +152,8 @@
 				13B07FB71A68108700A75B9A /* main.m */,
 				60E60B471BB105C927D3841F /* CapabilityProbe.h */,
 				2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */,
+				A00000000000000000000300 /* FullscreenVideoViewController.mm */,
+				A00000000000000000000301 /* FullscreenVideoViewController.h */,
 				ABC000000000000000000100 /* VideoSession.mm */,
 				ABC000000000000000000101 /* VideoSession.h */,
 				ABC000000000000000000102 /* VideoPlayer.mm */,
@@ -495,6 +503,7 @@
 				071A02EB091F03C2CE06A9BC /* ImageSave.mm in Sources */,
 				56C2D07BAFCBEDE045D5254A /* WifiNetwork.mm in Sources */,
 				EC41D104E88A2F10940E2ED2 /* BluetoothLe.mm in Sources */,
+				A00000000000000000000400 /* FullscreenVideoViewController.mm in Sources */,
 				ABC000000000000000000200 /* VideoSession.mm in Sources */,
 				ABC000000000000000000202 /* VideoPlayer.mm in Sources */,
 				ABC000000000000000000204 /* VideoViewComponentView.mm in Sources */,

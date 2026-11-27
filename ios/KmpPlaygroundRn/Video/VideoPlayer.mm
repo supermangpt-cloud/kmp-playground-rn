@@ -3,7 +3,10 @@
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 
+#import "FullscreenVideoViewController.h"
 #import "VideoSession.h"
+
+#import <React/RCTUtils.h>
 
 @implementation VideoPlayer
 
@@ -38,25 +41,47 @@ RCT_EXPORT_METHOD(close:(NSString *)playerId)
 
 RCT_EXPORT_METHOD(isPipSupported:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
-  // Implemented in a follow-up: needs AVPictureInPictureController plus the
-  // audio background mode, which the Android and HarmonyOS ports also required.
-  resolve(@NO);
+  resolve(@([[VideoSession shared] isPipSupported]));
 }
 
 RCT_EXPORT_METHOD(isInPip:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
-  resolve(@NO);
+  resolve(@([[VideoSession shared] isInPip]));
 }
 
 RCT_EXPORT_METHOD(enterPip)
 {
-  // Same as above: video PiP on iOS arrives with AVPictureInPictureController.
+  [[VideoSession shared] startPip];
 }
 
 RCT_EXPORT_METHOD(setFullscreen:(BOOL)fullscreen)
 {
-  // Fullscreen is the next step as well; it needs a presented controller so the
-  // page's own layout is not disturbed.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIViewController *root = RCTPresentedViewController();
+    if (root == nil) {
+      return;
+    }
+    if (fullscreen) {
+      if ([root.presentedViewController isKindOfClass:[FullscreenVideoViewController class]]) {
+        return;
+      }
+      FullscreenVideoViewController *controller = [[FullscreenVideoViewController alloc] init];
+      controller.modalPresentationStyle = UIModalPresentationFullScreen;
+      // The status bar belongs to the presenting controller otherwise, and it
+      // stayed visible over the video.
+      controller.modalPresentationCapturesStatusBarAppearance = YES;
+      __weak UIViewController *weakRoot = root;
+      controller.onClose = ^{
+        [VideoSession shared].isFullscreen = NO;
+        [weakRoot dismissViewControllerAnimated:YES completion:nil];
+      };
+      [VideoSession shared].isFullscreen = YES;
+      [root presentViewController:controller animated:YES completion:nil];
+    } else if ([root.presentedViewController isKindOfClass:[FullscreenVideoViewController class]]) {
+      [VideoSession shared].isFullscreen = NO;
+      [root dismissViewControllerAnimated:YES completion:nil];
+    }
+  });
 }
 
 @end

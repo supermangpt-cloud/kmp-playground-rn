@@ -103,6 +103,11 @@ export default function VideoScreen({onBack, url}: Props): React.JSX.Element {
         return;
       }
       setPosition(state.position);
+      // iOS puts fullscreen in its own controller; closing it with ✕ must not
+      // leave the page's button saying 退出全屏.
+      if (typeof state.fullscreen === 'boolean') {
+        setFullscreenFlag(state.fullscreen);
+      }
       setDuration(state.duration);
       setBuffering(state.buffering);
       setError(state.error);
