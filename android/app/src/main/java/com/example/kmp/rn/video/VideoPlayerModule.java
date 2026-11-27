@@ -42,6 +42,7 @@ public class VideoPlayerModule extends ReactContextBaseJavaModule {
 
   public VideoPlayerModule(ReactApplicationContext reactContext) {
     super(reactContext);
+    PipModeBus.attach(reactContext);
   }
 
   @NonNull

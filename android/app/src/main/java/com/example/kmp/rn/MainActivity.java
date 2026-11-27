@@ -8,6 +8,17 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate;
 public class MainActivity extends ReactActivity {
 
   /**
+   * The small window is an Activity mode, and JS cannot poll for it (timers stop
+   * when the Activity pauses), so it is pushed as an event instead.
+   */
+  @Override
+  public void onPictureInPictureModeChanged(
+      boolean isInPictureInPictureMode, android.content.res.Configuration newConfig) {
+    super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+    com.example.kmp.rn.video.PipModeBus.notifyChanged(isInPictureInPictureMode);
+  }
+
+  /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule
    * rendering of the component.
    */

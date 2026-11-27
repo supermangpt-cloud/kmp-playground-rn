@@ -52,6 +52,9 @@ public class VideoView extends FrameLayout {
   public VideoView(@NonNull Context context) {
     super(context);
     surfaceView = new SurfaceView(context);
+    // Draw above React Native's own surface. `setZOrderOnTop` was tried as well
+    // (the pip window does not composite the media-overlay layer either) and the
+    // window stayed black, so the layering is not the whole story here.
     surfaceView.setZOrderMediaOverlay(true);
     surfaceView.getHolder().addCallback(
         new SurfaceHolder.Callback() {

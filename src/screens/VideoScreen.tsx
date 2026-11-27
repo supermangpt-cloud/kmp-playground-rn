@@ -11,6 +11,7 @@
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
+  DeviceEventEmitter,
   Pressable,
   StyleSheet,
   Text,
@@ -78,6 +79,18 @@ export default function VideoScreen({onBack, url}: Props): React.JSX.Element {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Android pushes the small-window transitions as events: polling cannot see
+  // them, because the timers stop as soon as the Activity pauses for PiP.
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      'videoPipChanged',
+      (payload: {inPip?: boolean}) => {
+        setInPip(payload?.inPip === true);
+      },
+    );
+    return () => subscription.remove();
   }, []);
 
   // Leaving the page must not leave the window rotated or the bars hidden.
