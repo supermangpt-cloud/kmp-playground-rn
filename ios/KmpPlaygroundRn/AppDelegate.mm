@@ -34,13 +34,11 @@
     components = [NSMutableDictionary dictionary];
   }
   components[@"VideoView"] = [VideoViewComponentView class];
-  NSLog(@"[KmpDebug] thirdPartyFabricComponents -> %@", components.allKeys);
   return components;
 }
 
 - (NSURL *)bundleURL
 {
-  NSLog(@"[KmpDebug] AppDelegate.bundleURL called");
 #if DEBUG
   // Explicit Metro URL: `jsBundleURLForBundleRoot:` resolved to nil on the
   // simulator, which surfaced as 「No script URL provided」 and a white screen.
@@ -83,24 +81,35 @@
   UIWindow *window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
   self.window = window;
 
-  // Start React Native in this window (0.86 API). The splash hand-off is gone
-  // for now: `startReactNativeWithModuleName:` installs the root controller
-  // asynchronously, so reading `window.rootViewController` here returned nil and
-  // the window stayed on the (white) splash forever.
-  // Use the factory the app delegate already owns. Building a second one (with
-  // `initWithDelegate:`) made `bundleURL` reachable but left two factories in
-  // play: the app showed 「Loading from Metro...」 and Metro never received a
+  // Start React Native in this window (0.86 API).
+  //
+  // Use the factory the app delegate already owns. Building a second one with
+  // `initWithDelegate:` made `bundleURL` reachable but left two factories in
+  // play: the app sat on 「Loading from Metro...」 and Metro never received a
   // request.
   RCTReactNativeFactory *factory = appDelegate.reactNativeFactory;
-  @try {
-    NSLog(@"[KmpDebug] factory delegate = %@",
-          NSStringFromClass([[factory valueForKey:@"delegate"] class]));
-  } @catch (NSException *e) {
-    NSLog(@"[KmpDebug] delegate KVC failed: %@", e.reason);
-  }
   [factory startReactNativeWithModuleName:appDelegate.moduleName ?: @"KmpPlaygroundRn"
                                  inWindow:window];
   [window makeKeyAndVisible];
+
+  // The splash is an overlay, not the root controller: `startReactNative...`
+  // installs the root asynchronously, so swapping `rootViewController` right
+  // after it read as nil and the window stayed white forever.
+  SplashViewController *splash = [[SplashViewController alloc] init];
+  splash.view.frame = window.bounds;
+  splash.view.autoresizingMask =
+      UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+  [window addSubview:splash.view];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SPLASH_MILLIS * NSEC_PER_MSEC)),
+                 dispatch_get_main_queue(), ^{
+                   [UIView animateWithDuration:0.2
+                                    animations:^{
+                                      splash.view.alpha = 0;
+                                    }
+                                    completion:^(BOOL finished) {
+                                      [splash.view removeFromSuperview];
+                                    }];
+                 });
 }
 
 @end
