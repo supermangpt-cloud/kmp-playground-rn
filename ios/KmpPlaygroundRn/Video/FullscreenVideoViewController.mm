@@ -23,7 +23,9 @@
   [close setTitle:@"✕" forState:UIControlStateNormal];
   [close setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
   close.titleLabel.font = [UIFont systemFontOfSize:28 weight:UIFontWeightSemibold];
-  close.frame = CGRectMake(16, 16, 44, 44);
+  // Below the status bar: a 44pt button at y=16 sits inside it and the taps there
+  // never reached the button.
+  close.frame = CGRectMake(12, 64, 56, 56);
   [close addTarget:self action:@selector(closeTapped) forControlEvents:UIControlEventTouchUpInside];
   [self.view addSubview:close];
 }
