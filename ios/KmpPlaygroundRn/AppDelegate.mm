@@ -3,6 +3,7 @@
 #import <React/RCTBundleURLProvider.h>
 
 #import "SplashViewController.h"
+#import "Video/VideoViewComponentView.h"
 
 @implementation AppDelegate
 
@@ -24,6 +25,19 @@
 // React Native 0.86's factory asks its delegate for `bundleURL`; the 0.72
 // `sourceURLForBridge:` below is no longer consulted, and without this the
 // default delegate raises NSException on launch.
+// Fabric needs a view class for every component the JS asks for; without this the
+// video page renders 「Unimplemented component: <VideoView>」.
+- (NSDictionary<NSString *, Class<RCTComponentViewProtocol>> *)thirdPartyFabricComponents
+{
+  NSMutableDictionary *components = [[super thirdPartyFabricComponents] mutableCopy];
+  if (components == nil) {
+    components = [NSMutableDictionary dictionary];
+  }
+  components[@"VideoView"] = [VideoViewComponentView class];
+  NSLog(@"[KmpDebug] thirdPartyFabricComponents -> %@", components.allKeys);
+  return components;
+}
+
 - (NSURL *)bundleURL
 {
   NSLog(@"[KmpDebug] AppDelegate.bundleURL called");

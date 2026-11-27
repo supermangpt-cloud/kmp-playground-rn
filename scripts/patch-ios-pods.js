@@ -94,5 +94,74 @@ function raiseDeploymentTargets() {
   return changed;
 }
 
+
+/**
+ * React Native looks a Fabric component's view class up in the codegen'd
+ * `RCTThirdPartyComponentsProvider`, and that file is generated with an empty
+ * dictionary — the `thirdPartyFabricComponents` delegate method is never called
+ * on 0.86. Injecting the app's own component here is what makes
+ * 「Unimplemented component: <VideoView>」 go away.
+ */
+function registerAppFabricComponents() {
+  const provider = path.join(
+    iosDir,
+    'build/generated/ios/ReactCodegen/RCTThirdPartyComponentsProvider.mm',
+  );
+  if (!fs.existsSync(provider)) {
+    return 0;
+  }
+  const source = fs.readFileSync(provider, 'utf8');
+  if (source.includes('VideoViewComponentView')) {
+    return 0;
+  }
+  const entry =
+    '      @"VideoView": NSClassFromString(@"VideoViewComponentView"),\n';
+  const patched = source.replace(
+    /thirdPartyComponents = @\{\n/,
+    `thirdPartyComponents = @{\n${entry}`,
+  );
+  if (patched === source) {
+    console.warn('patch-ios-pods: could not find the component dictionary');
+    return 0;
+  }
+  fs.writeFileSync(provider, patched);
+  return 1;
+}
+
 console.log(`patch-ios-pods: ${patchFollyHeaders(podsDir)} folly header(s)`);
+
+/**
+ * React Native looks a Fabric component's view class up in the codegen'd
+ * `RCTThirdPartyComponentsProvider`, and that file is generated with an empty
+ * dictionary — the `thirdPartyFabricComponents` delegate method is never called
+ * on 0.86. Injecting the app's own component here is what makes
+ * 「Unimplemented component: <VideoView>」 go away.
+ */
+function registerAppFabricComponents() {
+  const provider = path.join(
+    iosDir,
+    'build/generated/ios/ReactCodegen/RCTThirdPartyComponentsProvider.mm',
+  );
+  if (!fs.existsSync(provider)) {
+    return 0;
+  }
+  const source = fs.readFileSync(provider, 'utf8');
+  if (source.includes('VideoViewComponentView')) {
+    return 0;
+  }
+  const entry =
+    '      @"VideoView": NSClassFromString(@"VideoViewComponentView"),\n';
+  const patched = source.replace(
+    /thirdPartyComponents = @\{\n/,
+    `thirdPartyComponents = @{\n${entry}`,
+  );
+  if (patched === source) {
+    console.warn('patch-ios-pods: could not find the component dictionary');
+    return 0;
+  }
+  fs.writeFileSync(provider, patched);
+  return 1;
+}
+
 console.log(`patch-ios-pods: ${raiseDeploymentTargets()} project(s) at iOS 15.1`);
+console.log(`patch-ios-pods: ${registerAppFabricComponents()} component(s) registered`);

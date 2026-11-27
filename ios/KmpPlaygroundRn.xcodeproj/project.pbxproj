@@ -11,6 +11,9 @@
 		071A02EB091F03C2CE06A9BC /* ImageSave.mm in Sources */ = {isa = PBXBuildFile; fileRef = 037F776B8633A0BF8F84C86B /* ImageSave.mm */; };
 		0C80B921A6F3F58F76C31292 /* libPods-KmpPlaygroundRn.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-KmpPlaygroundRn.a */; };
 		13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB01A68108700A75B9A /* AppDelegate.mm */; };
+		ABC000000000000000000200 /* VideoSession.mm in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000100 /* VideoSession.mm */; };
+		ABC000000000000000000202 /* VideoPlayer.mm in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000102 /* VideoPlayer.mm */; };
+		ABC000000000000000000204 /* VideoViewComponentView.mm in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000104 /* VideoViewComponentView.mm */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
 		24F43CA786D4DBF79299F305 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 006259973E7A906E8EB31905 /* UserNotifications.framework */; };
@@ -56,6 +59,12 @@
 		19F6CBCC0A4E27FBF8BF4A61 /* libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-KmpPlaygroundRn-KmpPlaygroundRnTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2CFCF28CD9B915A56AAEED88 /* WifiNetwork.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = WifiNetwork.mm; path = KmpPlaygroundRn/WifiNetwork.mm; sourceTree = "<group>"; };
 		2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = CapabilityProbe.mm; path = KmpPlaygroundRn/CapabilityProbe.mm; sourceTree = "<group>"; };
+		ABC000000000000000000100 /* VideoSession.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = VideoSession.mm; path = KmpPlaygroundRn/Video/VideoSession.mm; sourceTree = "<group>"; };
+		ABC000000000000000000101 /* VideoSession.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = VideoSession.h; path = KmpPlaygroundRn/Video/VideoSession.h; sourceTree = "<group>"; };
+		ABC000000000000000000102 /* VideoPlayer.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = VideoPlayer.mm; path = KmpPlaygroundRn/Video/VideoPlayer.mm; sourceTree = "<group>"; };
+		ABC000000000000000000103 /* VideoPlayer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = VideoPlayer.h; path = KmpPlaygroundRn/Video/VideoPlayer.h; sourceTree = "<group>"; };
+		ABC000000000000000000104 /* VideoViewComponentView.mm */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.objcpp; name = VideoViewComponentView.mm; path = KmpPlaygroundRn/Video/VideoViewComponentView.mm; sourceTree = "<group>"; };
+		ABC000000000000000000105 /* VideoViewComponentView.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = VideoViewComponentView.h; path = KmpPlaygroundRn/Video/VideoViewComponentView.h; sourceTree = "<group>"; };
 		33ADA2C5D2C3E2AC39F26992 /* ImageSave.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = ImageSave.h; path = KmpPlaygroundRn/ImageSave.h; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-KmpPlaygroundRn.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-KmpPlaygroundRn.debug.xcconfig"; path = "Target Support Files/Pods-KmpPlaygroundRn/Pods-KmpPlaygroundRn.debug.xcconfig"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-KmpPlaygroundRn.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-KmpPlaygroundRn.release.xcconfig"; path = "Target Support Files/Pods-KmpPlaygroundRn/Pods-KmpPlaygroundRn.release.xcconfig"; sourceTree = "<group>"; };
@@ -137,6 +146,12 @@
 				13B07FB71A68108700A75B9A /* main.m */,
 				60E60B471BB105C927D3841F /* CapabilityProbe.h */,
 				2F4AC39BF2EC146BAAF1EFB9 /* CapabilityProbe.mm */,
+				ABC000000000000000000100 /* VideoSession.mm */,
+				ABC000000000000000000101 /* VideoSession.h */,
+				ABC000000000000000000102 /* VideoPlayer.mm */,
+				ABC000000000000000000103 /* VideoPlayer.h */,
+				ABC000000000000000000104 /* VideoViewComponentView.mm */,
+				ABC000000000000000000105 /* VideoViewComponentView.h */,
 				33ADA2C5D2C3E2AC39F26992 /* ImageSave.h */,
 				037F776B8633A0BF8F84C86B /* ImageSave.mm */,
 				DB12236E270E111713861508 /* WifiNetwork.h */,
@@ -480,6 +495,9 @@
 				071A02EB091F03C2CE06A9BC /* ImageSave.mm in Sources */,
 				56C2D07BAFCBEDE045D5254A /* WifiNetwork.mm in Sources */,
 				EC41D104E88A2F10940E2ED2 /* BluetoothLe.mm in Sources */,
+				ABC000000000000000000200 /* VideoSession.mm in Sources */,
+				ABC000000000000000000202 /* VideoPlayer.mm in Sources */,
+				ABC000000000000000000204 /* VideoViewComponentView.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
