@@ -52,11 +52,17 @@ jobs:
 
   ios:
     name: ios
-    # Disabled until the runner has an Xcode that can build RN 0.72.5. The
-    # installed Xcode 27 requires a deployment target >= 15.0 (the project and
-    # Pods are at 12.4) and its clang rejects RN 0.72's Yoga/glog sources. Once
-    # Xcode 15/16 is installed and selected, remove this guard; the steps below
-    # (bundle install + bundle exec pod install) are ready for that toolchain.
+    # Still off, but for a different reason than when this guard was added.
+    #
+    # The project is on RN 0.86 with an iOS 15.1 deployment target and builds
+    # locally under Xcode 27 (see PR #46). What is unknown is the runner: this
+    # job has never run on it, and it additionally needs the CocoaPods step to
+    # apply `scripts/patch-ios-pods.js` (folly's coroutine headers are missing
+    # from RN 0.86's prebuilt dependencies, and codegen's component dictionary is
+    # generated empty — both patched after `pod install`).
+    #
+    # Turn it on once someone can confirm the runner's Xcode is 26+, then treat
+    # the first run as the experiment: `pod install` + build there is not proven.
     if: ${{ false }}
     runs-on: [self-hosted, macOS, ARM64]
     steps:

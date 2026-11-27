@@ -12,7 +12,7 @@
     "build:demo-html": "node scripts/build-demo-html.js",
     "dev": "react-native bundle --platform harmony --dev true --entry-file index.js --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js --assets-dest harmony/entry/src/main/resources/rawfile/assets",
     "bundle-harmony": "react-native bundle --platform harmony --dev false --entry-file index.js --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js --assets-dest harmony/entry/src/main/resources/rawfile/assets",
-    "postinstall": "node scripts/patch-rn-webview-android.js",
+    "postinstall": "node scripts/patch-rn-webview-android.js && node scripts/patch-ios-pods.js",
     "codegen:harmony": "react-native codegen-harmony --ets-output-path harmony/entry/src/main/ets/generated --cpp-output-path harmony/entry/src/main/cpp/generated"
   },
   "dependencies": {
